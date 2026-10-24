@@ -1,6 +1,7 @@
 <p align="center"><img src="docs/images/vexpace_logo.png" alt="VEXPACE" width="420"></p>
 
 <h1 align="center">VEXPACE</h1>
+<p align="center"><a href="https://faisal-um-ners.github.io/VEXPACE/">Website &amp; interactive user manual</a> · <a href="https://faisal-um-ners.github.io/VEXPACE/examples.html">Browse examples</a></p>
 <p align="center"><b>Virtual Experiments in Plasma and Computational Electrodynamics</b><br>
 An Open-Source Particle-in-Cell Simulation Framework for Plasma and Vacuum Electronics</p>
 
