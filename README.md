@@ -317,8 +317,8 @@ Citation metadata are also provided in [`CITATION.cff`](CITATION.cff).
 
 ## Author
 
-**Md Arifuzzaman Faisal**
-Department of Nuclear Engineering and Radiological Sciences, University of Michigan, Ann Arbor, MI, USA
+**Md Arifuzzaman Faisal**  
+Website: [www.arifuzzaman.info](https://www.arifuzzaman.info/)
 
 ## License
 
