@@ -31,3 +31,33 @@
  document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();else start();});
  show(0);start();
 })();
+
+
+/* Default-light persistent color theme, shared by all public site pages. */
+(()=>{'use strict';
+ const key='vexpace-theme';
+ const buttons=Array.from(document.querySelectorAll('[data-theme-toggle]'));
+ if(!buttons.length)return;
+ function setTheme(mode){
+  const dark=mode==='dark';
+  document.documentElement.dataset.theme=dark?'dark':'light';
+  document.documentElement.style.colorScheme=dark?'dark':'light';
+  const meta=document.querySelector('meta[name="theme-color"]');
+  if(meta)meta.setAttribute('content',dark?'#0f1825':'#f7f9fc');
+  for(const b of buttons){
+   b.setAttribute('aria-label',dark?'Switch to light theme':'Switch to dark theme');
+   b.setAttribute('aria-pressed',String(dark));
+   b.setAttribute('title',dark?'Switch to light theme':'Switch to dark theme');
+   const icon=b.querySelector('.theme-toggle-icon'),label=b.querySelector('.theme-toggle-label');
+   if(icon)icon.textContent=dark?'☀':'☾';
+   if(label)label.textContent=dark?'Light':'Dark';
+  }
+ }
+ let saved='light';
+ try{if(localStorage.getItem(key)==='dark')saved='dark';}catch(e){}
+ setTheme(saved);
+ for(const b of buttons)b.addEventListener('click',()=>{
+  const next=document.documentElement.dataset.theme==='dark'?'light':'dark';
+  setTheme(next);try{localStorage.setItem(key,next);}catch(e){}
+ });
+})();
