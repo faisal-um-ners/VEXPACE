@@ -1135,7 +1135,7 @@ class MainWindow(QMainWindow):
                     f"<p><b>Author:</b> {AUTHOR}<br>"
                     "<b>Website:</b> <a href='https://www.arifuzzaman.info'>www.arifuzzaman.info</a></p>"
                     f"<p>{COPYRIGHT}. Released under the {LICENSE}.<br>"
-                    "Earlier BSD grants and WarpX (BSD-3-Clause-LBNL) rights remain valid; see LICENSE and THIRD_PARTY_NOTICES.md.</p>"
+                    "Third-party WarpX components retain their BSD-3-Clause-LBNL terms; see LICENSE and THIRD_PARTY_NOTICES.md.</p>"
                     f"<p><a href='{URL}'>{URL}</a></p>")
         box.setTextFormat(Qt.RichText)
         box.setTextInteractionFlags(Qt.TextBrowserInteraction)
