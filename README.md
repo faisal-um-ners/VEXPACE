@@ -294,7 +294,7 @@ install/        installers and launchers
 ```
 
 
-****Intended use:** Personal research, education, and internal evaluation. Redistribution of newly licensed original contributions requires prior written permission; pre-existing BSD grants and third-party rights remain valid. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).nal research, education, and internal evaluation. This describes its current development focus, not a restriction on use; the [BSD 3-Clause License](LICENSE) continues to govern permitted use and redistribution.
+****Intended use:** Personal research, education, and internal evaluation. Redistribution of newly licensed original contributions requires prior written permission; pre-existing BSD grants and third-party rights remain valid. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Author
 
