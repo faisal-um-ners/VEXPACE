@@ -294,7 +294,7 @@ install/        installers and launchers
 ```
 
 
-Citation metadata are also provided in [`CITATION.cff`](CITATION.cff).
+**Intended use:** VEXPACE is developed primarily for personal research, education, and internal evaluation. This describes its current development focus, not a restriction on use; the [BSD 3-Clause License](LICENSE) continues to govern permitted use and redistribution.
 
 ## Author
 
