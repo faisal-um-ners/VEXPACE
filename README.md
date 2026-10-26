@@ -294,7 +294,7 @@ install/        installers and launchers
 ```
 
 
-****Intended use:** Personal research, education, and internal evaluation. Redistribution of newly licensed original contributions requires prior written permission; pre-existing BSD grants and third-party rights remain valid. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+**Intended use:** VEXPACE is provided for personal research, education, and internal evaluation. Redistribution of the original VEXPACE contributions covered by the current license requires prior written permission. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Author
 
@@ -303,7 +303,7 @@ Website: [www.arifuzzaman.info](https://www.arifuzzaman.info/)
 
 ## License
 
-Copyright © 2026 Md Arifuzzaman Faisal. Newly licensed original contributions are subject to the [Personal and Internal Use License](LICENSE): no redistribution without prior written permission. Earlier BSD-licensed releases retain their earlier grants.
+Copyright © 2026 Md Arifuzzaman Faisal. The author's original VEXPACE contributions are offered under the [Personal and Internal Use License](LICENSE). Redistribution under that license requires prior written permission.
 
 Selected particle-pushing, position-update, field-gathering, and current-deposition routines in VEXPACE are translated or adapted from [WarpX](https://github.com/BLAST-WarpX/warpx), under its **BSD-3-Clause-LBNL** license. The original copyright and license notices are preserved in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), and WarpX's supplementary [`NOTICE.txt`](third_party/warpx/NOTICE.txt) is included.
 
