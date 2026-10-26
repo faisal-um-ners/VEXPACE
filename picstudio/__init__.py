@@ -3,7 +3,7 @@
 A particle-in-cell code for 1D (z), 2D Cartesian (z,y) and 2D axisymmetric (z,r) electrostatic and
 electromagnetic simulations.
 
-Copyright (c) 2026 Md Arifuzzaman Faisal. Current original contributions: personal/internal-use terms (see LICENSE); earlier BSD grants remain valid.
+Copyright (c) 2026 Md Arifuzzaman Faisal. Original VEXPACE contributions: personal/internal-use terms (see LICENSE).
 
 Quick use from Python::
 
