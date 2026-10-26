@@ -3,10 +3,10 @@
 <h1 align="center">VEXPACE</h1>
 <p align="center"><a href="https://faisal-um-ners.github.io/VEXPACE/">Website &amp; interactive user manual</a> · <a href="https://faisal-um-ners.github.io/VEXPACE/examples.html">Browse examples</a></p>
 <p align="center"><b>Virtual Experiments in Plasma and Computational Electrodynamics</b><br>
-An Open-Source Particle-in-Cell Simulation Framework for Plasma and Vacuum Electronics</p>
+A Particle-in-Cell Simulation Framework for Plasma and Vacuum Electronics</p>
 
 <p align="center">
-<a href="LICENSE"><img alt="License: BSD-3-Clause" src="https://img.shields.io/badge/license-BSD--3--Clause-blue.svg"></a>
+<a href="LICENSE"><img alt="License: Personal and Internal Use" src="https://img.shields.io/badge/license-Personal%20%26%20Internal%20Use-blue.svg"></a>
 <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-blue.svg">
 <img alt="Validation: 107/107" src="https://img.shields.io/badge/validation-107%2F107%20passed-brightgreen.svg">
 </p>
@@ -294,7 +294,7 @@ install/        installers and launchers
 ```
 
 
-**Intended use:** VEXPACE is developed primarily for personal research, education, and internal evaluation. This describes its current development focus, not a restriction on use; the [BSD 3-Clause License](LICENSE) continues to govern permitted use and redistribution.
+****Intended use:** Personal research, education, and internal evaluation. Redistribution of newly licensed original contributions requires prior written permission; pre-existing BSD grants and third-party rights remain valid. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).nal research, education, and internal evaluation. This describes its current development focus, not a restriction on use; the [BSD 3-Clause License](LICENSE) continues to govern permitted use and redistribution.
 
 ## Author
 
@@ -303,8 +303,8 @@ Website: [www.arifuzzaman.info](https://www.arifuzzaman.info/)
 
 ## License
 
-Copyright © 2026 Md Arifuzzaman Faisal for original VEXPACE contributions. These contributions are distributed under the [BSD 3-Clause License](LICENSE).
+Copyright © 2026 Md Arifuzzaman Faisal. Newly licensed original contributions are subject to the [Personal and Internal Use License](LICENSE): no redistribution without prior written permission. Earlier BSD-licensed releases retain their earlier grants.
 
 Selected particle-pushing, position-update, field-gathering, and current-deposition routines in VEXPACE are translated or adapted from [WarpX](https://github.com/BLAST-WarpX/warpx), under its **BSD-3-Clause-LBNL** license. The original copyright and license notices are preserved in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), and WarpX's supplementary [`NOTICE.txt`](third_party/warpx/NOTICE.txt) is included.
 
-VEXPACE is an independent research project and is not affiliated with or endorsed by the WarpX team or its institutions.
+VEXPACE is an independently maintained research project and is not affiliated with or endorsed by the WarpX team or its institutions.
