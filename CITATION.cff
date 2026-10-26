@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use VEXPACE in your research, please cite it as below."
-title: "VEXPACE: An Open-Source Particle-in-Cell Simulation Framework for Plasma and Vacuum Electronics"
+title: "VEXPACE: A Particle-in-Cell Simulation Framework for Plasma and Vacuum Electronics"
 type: software
 authors:
   - family-names: "Faisal"
@@ -17,7 +17,7 @@ identifiers:
     value: "10.5281/zenodo.23512471"
     description: "Version-specific Zenodo DOI for the archived v1.3.0 release"
 date-released: "2026-10-20"
-license: BSD-3-Clause
+license: LicenseRef-VEXPACE-Personal-Internal-Use
 repository-code: "https://github.com/faisal-um-ners/VEXPACE"
 url: "https://github.com/faisal-um-ners/VEXPACE"
 keywords:
