@@ -1,52 +1,37 @@
-VEXPACE — Personal and Internal Use License (Current Contributions)
+VEXPACE — Personal and Internal Use License
 Copyright (c) 2026 Md Arifuzzaman Faisal. All rights reserved.
 
-IMPORTANT SCOPE AND PRIOR RIGHTS
+1. SCOPE
 
-This notice applies only to original VEXPACE contributions for which Md
-Arifuzzaman Faisal holds the necessary licensing rights, to the extent they
-were first distributed under these terms. It does not revoke licenses granted
-under earlier releases, including BSD-3-Clause grants. Copies legitimately
-received under those earlier terms may continue to be used and redistributed
-in accordance with those terms.
+This license applies to original VEXPACE contributions for which Md
+Arifuzzaman Faisal holds the necessary licensing rights, in copies offered
+under these terms. Third-party components, including code adapted from
+WarpX, are governed by their own licenses and are not relicensed here.
+See THIRD_PARTY_NOTICES.md and third_party/warpx/NOTICE.txt.
 
-VEXPACE also includes implementations adapted from WarpX and may use other
-third-party components. Their existing licenses and redistribution rights
-remain unchanged. See THIRD_PARTY_NOTICES.md and third_party/warpx/NOTICE.txt.
-No restriction below applies to material licensed by third parties.
+2. PERMITTED USE
 
-PERMISSION FOR NEWLY LICENSED ORIGINAL CONTRIBUTIONS
+Permission is granted to individuals and organizations receiving VEXPACE
+under these terms to run and inspect the original VEXPACE contributions
+solely for personal research, education, or internal evaluation, provided
+the copyright and applicable third-party notices remain intact.
 
-Subject to the preceding limitations, permission is granted to an individual
-or organization obtaining a copy of the newly licensed original contributions
-to run and inspect them solely for personal research, education, or internal
-evaluation, provided all copyright and applicable third-party notices remain
-intact.
+3. REDISTRIBUTION REQUIRES WRITTEN PERMISSION
 
-NO REDISTRIBUTION OR PUBLIC DERIVATIVES WITHOUT WRITTEN PERMISSION
+No permission is granted under this license to redistribute, republish,
+sublicense, sell, or supply copies of the covered original VEXPACE
+contributions, in source or binary form, whether modified or unmodified,
+without prior written permission from the copyright holder.
 
-Except where an earlier or third-party license independently permits it, you
-may not redistribute, publish, sublicense, sell, or otherwise supply copies
-of these newly licensed original contributions, whether modified or unmodified,
-in source or binary form, to another person or organization without prior
-written permission from the relevant copyright holder. Publicly distributing
-derivative works incorporating those contributions likewise requires
-permission.
+This condition does not apply to independently licensed third-party
+materials or override rights granted by applicable law.
 
-This restriction concerns the newly licensed original contributions only.
-It does not purport to restrict rights granted under prior BSD licenses,
-third-party licenses, or mandatory applicable law. Public repository hosting
-may involve additional limited rights under the hosting platform's terms.
+4. DISCLAIMER
 
-NO WARRANTY
+THE COVERED SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED. TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT
+HOLDER DISCLAIMS LIABILITY FOR DAMAGES ARISING FROM ITS USE.
 
-TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE NEWLY LICENSED ORIGINAL
-CONTRIBUTIONS ARE PROVIDED "AS IS", WITHOUT WARRANTIES OF ANY KIND.
-THE COPYRIGHT HOLDER DISCLAIMS LIABILITY FOR DAMAGES ARISING FROM THEIR USE
-TO THE MAXIMUM EXTENT PERMITTED BY LAW.
+For permission inquiries: https://www.arifuzzaman.info/
 
-For requests for redistribution permission:
-https://www.arifuzzaman.info/
-
-This is a non-open-source, source-available license for newly licensed
-original contributions only. It is not the BSD-3-Clause license.
+This is a source-available, non-open-source license.
