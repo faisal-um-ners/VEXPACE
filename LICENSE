@@ -1,29 +1,52 @@
-BSD 3-Clause License
+VEXPACE — Personal and Internal Use License (Current Contributions)
+Copyright (c) 2026 Md Arifuzzaman Faisal. All rights reserved.
 
-Copyright (c) 2026, Md Arifuzzaman Faisal
-All rights reserved.
+IMPORTANT SCOPE AND PRIOR RIGHTS
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
+This notice applies only to original VEXPACE contributions for which Md
+Arifuzzaman Faisal holds the necessary licensing rights, to the extent they
+were first distributed under these terms. It does not revoke licenses granted
+under earlier releases, including BSD-3-Clause grants. Copies legitimately
+received under those earlier terms may continue to be used and redistributed
+in accordance with those terms.
 
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
+VEXPACE also includes implementations adapted from WarpX and may use other
+third-party components. Their existing licenses and redistribution rights
+remain unchanged. See THIRD_PARTY_NOTICES.md and third_party/warpx/NOTICE.txt.
+No restriction below applies to material licensed by third parties.
 
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
+PERMISSION FOR NEWLY LICENSED ORIGINAL CONTRIBUTIONS
 
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
+Subject to the preceding limitations, permission is granted to an individual
+or organization obtaining a copy of the newly licensed original contributions
+to run and inspect them solely for personal research, education, or internal
+evaluation, provided all copyright and applicable third-party notices remain
+intact.
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+NO REDISTRIBUTION OR PUBLIC DERIVATIVES WITHOUT WRITTEN PERMISSION
+
+Except where an earlier or third-party license independently permits it, you
+may not redistribute, publish, sublicense, sell, or otherwise supply copies
+of these newly licensed original contributions, whether modified or unmodified,
+in source or binary form, to another person or organization without prior
+written permission from the relevant copyright holder. Publicly distributing
+derivative works incorporating those contributions likewise requires
+permission.
+
+This restriction concerns the newly licensed original contributions only.
+It does not purport to restrict rights granted under prior BSD licenses,
+third-party licenses, or mandatory applicable law. Public repository hosting
+may involve additional limited rights under the hosting platform's terms.
+
+NO WARRANTY
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE NEWLY LICENSED ORIGINAL
+CONTRIBUTIONS ARE PROVIDED "AS IS", WITHOUT WARRANTIES OF ANY KIND.
+THE COPYRIGHT HOLDER DISCLAIMS LIABILITY FOR DAMAGES ARISING FROM THEIR USE
+TO THE MAXIMUM EXTENT PERMITTED BY LAW.
+
+For requests for redistribution permission:
+https://www.arifuzzaman.info/
+
+This is a non-open-source, source-available license for newly licensed
+original contributions only. It is not the BSD-3-Clause license.
