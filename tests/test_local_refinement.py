@@ -96,6 +96,45 @@ def test_fixed_mesh_PIC_and_both_gathers():
         assert 'local_phi' in s.field_snapshot()
 
 
+@pytest.mark.parametrize('geom',['2D-ZY','2D-RZ'])
+@pytest.mark.parametrize('wall',['reflect','absorb','periodic','axis'])
+def test_newborn_wall_crossing_is_handled_before_local_deposit(geom,wall):
+    """Fractional-step emission drift must obey the existing wall rules."""
+    if wall=='axis' and geom!='2D-RZ':
+        pytest.skip('Axis is specific to RZ')
+    m=model(geom,n=4,h=.1)
+    m['boundaries']['z_max']['voltage']='0'
+    for side in ('y_min','y_max'):
+        m['boundaries'][side].update(field='periodic' if wall=='periodic' else 'neumann',
+                                     particles='reflect' if wall=='axis' else wall)
+    if wall=='axis':m['boundaries']['y_min']['field']='axis'
+    m['species']=[dict(name='e',preset='electron')]
+    m['simulation']['dt']='1e-12'
+    s=Simulation(m,write_output=False,log=lambda _:None)
+    # Match the boundary codes explicitly: RZ's physical axis is always axis.
+    if wall!='axis':s.pbc[2]=dict(reflect=1,absorb=0,periodic=2)[wall]
+    sp=s.species[0]
+    out=dict(z=np.array([.2,.3,.4]),y=np.array([-.01,.5,1.01]),
+             u0=np.ones(3),u1=np.array([-2.,3.,4.]),u2=np.zeros(3),w=np.array([2.,3.,5.]))
+    def emit(t):
+        s.emit_acc=np.array([sp.q*out['w'].sum()])
+        return [(sp,out)]
+    s._emit=emit
+    s.step()  # Exercises the actual emission -> boundary -> deposit sequence.
+    assert np.isfinite(s.local_es.phi).all()
+    assert sp.n==(1 if wall=='absorb' else 3)
+    if wall=='absorb':
+        np.testing.assert_array_equal(sp.w,[3.])
+        assert s.coll_side[3]==pytest.approx(sp.q*2,abs=1e-30)
+        assert s.coll_side[4]==pytest.approx(sp.q*5,abs=1e-30)
+    else:
+        np.testing.assert_allclose(sp.y,[.99,.5,.01] if wall=='periodic' else [.01,.5,.99])
+        np.testing.assert_array_equal(sp.u1,[-2,3,4] if wall=='periodic' else [2,3,-4])
+        np.testing.assert_array_equal(sp.w,out['w'])
+    assert abs(s.local_es.q.sum()-sp.q*sp.w.sum())<1e-30
+    assert abs(s.emit_acc.sum()-sp.q*sp.w.sum()-s.coll_side.sum())<1e-30
+
+
 def test_unsupported_modes_and_invalid_region_rejected():
     m=model();m['simulation']['solver']='electromagnetic'
     assert any(k=='error' and 'electrostatic' in v for k,v in M.validate(m))

@@ -659,6 +659,27 @@ class Simulation:
         return new
 
     # ==========================================================================
+    def _add_local_emitted(self, sp, out):
+        """Apply existing wall rules to births that leave the local mesh.
+
+        Emission includes a fractional-step drift. A birth near a transverse
+        wall can therefore cross it before the first Poisson deposit. Handle
+        that crossing just as for pushed particles, including collected charge.
+        Interior births and every other mesh/solver keep their existing path.
+        """
+        g = self.grid
+        outside = ((out["z"] < g.z_min) | (out["z"] >= g.z_max) |
+                   (out["y"] < g.y_min) | (out["y"] >= g.y_max))
+        if outside.any():
+            births = Species(sp.spec, self.ev, sp.index, capacity=len(out["z"]))
+            births.add(*(out[key] for key in ("z", "y", "u0", "u1", "u2", "w")))
+            flag = self._boundaries(births, wrap=True)
+            self._account(births, flag)
+            births.keep(flag == 0)
+            sp.add(births.z, births.y, births.u0, births.u1, births.u2, births.w)
+        else:
+            sp.add(out["z"], out["y"], out["u0"], out["u1"], out["u2"], out["w"])
+
     def step(self):
         g = self.grid
         dt = self.dt
@@ -676,7 +697,10 @@ class Simulation:
                     sp.keep(flag == 0)
             te = time.perf_counter()
             for sp, out in self._emit(t):
-                sp.add(out["z"], out["y"], out["u0"], out["u1"], out["u2"], out["w"])
+                if self.local_es is not None:
+                    self._add_local_emitted(sp, out)
+                else:
+                    sp.add(out["z"], out["y"], out["u0"], out["u1"], out["u2"], out["w"])
             self.timers["emit"] += time.perf_counter() - te
             tf = time.perf_counter()
             self._es_solve(t + dt)

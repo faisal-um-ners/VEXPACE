@@ -2,8 +2,8 @@
 
 Open **File → Examples**, select one of the following, and select
 **Emission → pulsed_beam → Current pulse…**. Change a shape or value, click
-**Apply to model**, then **Run**. The old result display is cleared when settings
-change. A cancelled or failed save cancels Run, rather than running the old file.
+**Apply to model**, then **Run**. The last run remains visible when settings change, with a notice that
+it used earlier settings. Plots are replaced when the next run starts. A cancelled or failed save cancels Run, rather than running the old file.
 
 | Example file | Coordinates | Pulse shape | Velocity spread | Mesh |
 |---|---|---|---|---|
@@ -81,3 +81,10 @@ same output folder, and compare the saved model, emitted-current history, and
 live plot data. Separate tests change the actual RZ and YZ dialogs and run the
 full local-mesh cases. Focused field/table edits, failed saves, failed reruns,
 old output on model reopening, and repeated unit changes are covered.
+
+Higher-particle local-mesh runs also cover newborn particles crossing a wall
+during their fractional emission step. Existing reflection, periodic, axis
+and absorption rules are applied before the first local-mesh charge deposit;
+absorbed charge is recorded in the existing collection totals. This fixes a
+rare out-of-mesh failure without changing emission sampling, pushers, charge
+deposition weights or the field equations. Tests cover both ZY and RZ.

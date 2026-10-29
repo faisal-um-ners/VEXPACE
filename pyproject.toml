@@ -47,3 +47,4 @@ include = ["picstudio*"]
 
 [tool.setuptools.package-data]
 "picstudio.gui" = ["icons/*.svg"]
+"picstudio.gui.figure_export" = ["LICENSE.txt", "NOTICE.md"]

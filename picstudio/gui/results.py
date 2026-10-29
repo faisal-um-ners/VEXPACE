@@ -119,6 +119,11 @@ class LivePanel(QWidget):
         super().__init__(parent)
         from PySide6.QtWidgets import QToolButton
         lay = QVBoxLayout(self)
+        self.model_notice = QLabel()
+        self.model_notice.setObjectName("hint")
+        self.model_notice.setWordWrap(True)
+        self.model_notice.hide()
+        lay.addWidget(self.model_notice)
         bar = QHBoxLayout()
         self.qty = QComboBox()
         self.phx = QComboBox()
@@ -152,11 +157,18 @@ class LivePanel(QWidget):
         self.fft_chk.toggled.connect(lambda *_: self.redraw())
 
     def reset(self):
+        self.model_notice.clear()
+        self.model_notice.hide()
         self.env = {}
         self.data = None
         self.checked = set()
         self.sig_names = []
         self._user_sig = False
+
+    def mark_model_changed(self, message):
+        """Annotate the existing run without resetting plots, zoom or selections."""
+        self.model_notice.setText(message)
+        self.model_notice.show()
 
     def clear(self, message="Press Run (F5) to start - live plots appear here"):
         """Forget the previous run completely and blank the four plots."""
@@ -506,11 +518,16 @@ class ResultsPanel(QWidget):
         v = QVBoxLayout(ctl)
         self.dir_label = QLabel("No results loaded")
         self.dir_label.setWordWrap(True)
+        self.model_notice = QLabel()
+        self.model_notice.setObjectName("hint")
+        self.model_notice.setWordWrap(True)
+        self.model_notice.hide()
         b = self.open_button = QPushButton("Open results folder...")
         b.clicked.connect(self.choose_dir)
         br = QPushButton("Refresh")
         br.clicked.connect(self.refresh)
         v.addWidget(self.dir_label)
+        v.addWidget(self.model_notice)
         v.addWidget(b)
         v.addWidget(br)
         self.kind = QComboBox()
@@ -582,6 +599,8 @@ class ResultsPanel(QWidget):
 
     def clear(self):
         self.res = None
+        self.model_notice.clear()
+        self.model_notice.hide()
         self.dir_label.setText("(no results loaded)")
         self.plot.set_grid(1, 1)
         self.plot.draw()
@@ -592,8 +611,14 @@ class ResultsPanel(QWidget):
         if not os.path.isdir(d):
             return
         self.res = Results(d)
+        self.model_notice.clear()
+        self.model_notice.hide()
         self.dir_label.setText(d)
         self.refresh()
+
+    def mark_model_changed(self, message):
+        self.model_notice.setText(message)
+        self.model_notice.show()
 
     def refresh(self):
         if self.res is None:
@@ -711,9 +736,7 @@ class ResultsPanel(QWidget):
         self.plot.draw()
 
     def export_fig(self):
-        fn, _ = QFileDialog.getSaveFileName(self, "Export figure", "figure.png", "Images (*.png *.pdf *.svg)")
-        if fn:
-            self.plot.fig.savefig(fn, dpi=200)
+        self.plot.export_figure()
 
     def export_anim(self):
         if self.res is None:

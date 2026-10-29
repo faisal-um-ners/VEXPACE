@@ -667,7 +667,7 @@ class MainWindow(QMainWindow):
     def mark_dirty(self, *_):
         self.dirty = True
         self.update_title()
-        self._invalidate_previous_results()
+        self._mark_results_outdated()
 
     @staticmethod
     def _model_signature(model):
@@ -682,16 +682,15 @@ class MainWindow(QMainWindow):
         if focus is not None and self.isAncestorOf(focus):
             focus.clearFocus()
 
-    def _invalidate_previous_results(self):
-        if self.proc is not None:
-            return
-        if self.live.data is not None or self.results.res is not None:
-            self.live_timer.stop()
-            self.run_out = None
-            self.live.clear("Model changed. Press Run to calculate the updated pulse and results.")
-            self.results.clear()
-            self.progress.setValue(0)
-            self.status.setText("Model changed — run again for updated results")
+    def _mark_results_outdated(self):
+        if self.live.data is not None or self.results.res is not None or self.proc is not None:
+            message = ("Current run uses its saved settings. Your edits apply to the next Run."
+                       if self.proc is not None else
+                       "Showing the last run. Settings have changed; press Run to calculate the edited model.")
+            self.live.mark_model_changed(message)
+            self.results.mark_model_changed(message)
+            if self.proc is None:
+                self.status.setText("Last run displayed — settings changed")
 
     @staticmethod
     def _history_stamp(directory):
@@ -1133,7 +1132,7 @@ class MainWindow(QMainWindow):
                 self.msg("No new output: earlier results were not reloaded.")
         self.run_out = None
         if getattr(self, "_run_signature", None) != self._model_signature(self.model):
-            self._invalidate_previous_results()
+            self._mark_results_outdated()
             self.msg("Settings changed during the run. Press Run to calculate those updated settings.")
         cb = getattr(self, "_after_proc", None)
         self._after_proc = None

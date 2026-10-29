@@ -121,11 +121,16 @@ def test_actual_shape_changes_reach_repeated_solver_runs_and_live_results(editor
     histories = []
     for shape, peak in [('square', 10), ('gaussian', 75), ('trapezoid', 30)]:
         form = w.scroll.widget().findChild(FieldForm)
+        previous_live = w.live.data
+        previous_results = w.results.res
         apply_pulse_with_real_dialog(app, form, shape, peak)
         assert w.model['emitters'][0]['pulse_builder']['shape'] == shape
-        assert w.live.data is None
-        assert w.results.res is None
+        assert w.live.data is previous_live
+        assert w.results.res is previous_results
+        if previous_live is not None:
+            assert not w.live.model_notice.isHidden()
         w.run()
+        assert w.live.data is None and w.results.res is None
         wait_for(app, lambda: w.proc is None)
         assert 'Process finished with exit code 0' in w.log.toPlainText()
         saved = M.load(path)
@@ -143,12 +148,35 @@ def test_actual_shape_changes_reach_repeated_solver_runs_and_live_results(editor
         safe = (abs(t-dt-gate['start']) > dt/10) & (abs(t-dt-gate['start']-gate['duration']) > dt/10) & (t > 0)
         np.testing.assert_allclose(observed[safe], expected[safe], atol=2e-5, rtol=2e-6)
         assert w.live.data is not None
+        assert w.live.model_notice.isHidden()
         cols = [str(c) for c in w.live.data['history_columns']]
         live = np.asarray(w.live.data['history'])
         assert np.max(abs(live[:, cols.index('Iemit_beam')])) == pytest.approx(peak, rel=.001)
         histories.append(observed)
     assert not np.array_equal(histories[0], histories[1])
     assert not np.array_equal(histories[1], histories[2])
+
+
+def test_settings_edits_preserve_last_run_plots_zoom_and_signals(editor):
+    app, w, _ = editor
+    w.run()
+    wait_for(app, lambda: w.proc is None)
+    previous_live, previous_results = w.live.data, w.results.res
+    axis = w.live.plot.axes[-1]
+    axis.set_xlim(4e-11, 2e-10)
+    selected = set(w.live.checked)
+    with patch.object(w.live, 'clear') as clear, patch.object(w.live, 'redraw') as redraw:
+        w.model['emitters'][0]['energy'] = '200'
+        w.mark_dirty()
+        app.processEvents()
+    clear.assert_not_called()
+    redraw.assert_not_called()
+    assert w.live.data is previous_live and w.results.res is previous_results
+    assert w.live.plot.axes[-1] is axis
+    assert axis.get_xlim() == (4e-11, 2e-10)
+    assert w.live.checked == selected
+    assert not w.live.model_notice.isHidden()
+    assert not w.results.model_notice.isHidden()
 
 
 def test_failed_new_run_does_not_reload_previous_history(editor):

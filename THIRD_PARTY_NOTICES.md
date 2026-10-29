@@ -87,3 +87,16 @@ in binary and source code form.
 
 VEXPACE uses NumPy, SciPy, scikit-fem, Numba, Matplotlib and (optionally) PySide6 and mpi4py, each under
 its own license. They are installed separately and are not redistributed with VEXPACE.
+
+
+## PASCHEN-1D-GUI Studio figure exporter
+
+The figure export dialog and its supporting modules under
+`picstudio/gui/figure_export/` are adapted from PASCHEN-1D-GUI Studio by
+Md Arifuzzaman Faisal, commit `ced9e63f38abaaf591e85998f2e6d26eb1f36a63`.
+Source: https://github.com/faisal-um-ners/PASCHEN-1D-GUI/tree/ced9e63f38abaaf591e85998f2e6d26eb1f36a63/studio/paschen_studio
+
+These modules retain their Creative Commons Attribution-NonCommercial 4.0
+International license. The full license and adaptation notice are included
+in `picstudio/gui/figure_export/LICENSE.txt` and `NOTICE.md`. VEXPACE's
+personal/internal-use license does not relicense these upstream modules.

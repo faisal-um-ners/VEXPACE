@@ -9,13 +9,19 @@ from matplotlib.figure import Figure  # noqa: E402
 from PySide6.QtWidgets import QSizePolicy, QVBoxLayout, QWidget  # noqa: E402
 
 
+class ExportToolbar(NavigationToolbar2QT):
+    """Every Matplotlib Save action opens the shared publication exporter."""
+    def save_figure(self, *args):
+        self.parent().export_figure()
+
+
 class PlotWidget(QWidget):
     def __init__(self, parent=None, nrows=1, ncols=1, figsize=(6, 4)):
         super().__init__(parent)
         self.fig = Figure(figsize=figsize, layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
         self.canvas.setMinimumSize(120, 80)
-        self.toolbar = NavigationToolbar2QT(self.canvas, self)
+        self.toolbar = ExportToolbar(self.canvas, self)
         self.toolbar.setObjectName("plotToolbar")
         from PySide6.QtCore import QSize
         self.toolbar.setIconSize(QSize(16, 16))
@@ -54,3 +60,7 @@ class PlotWidget(QWidget):
 
     def draw(self):
         self.canvas.draw_idle()
+
+    def export_figure(self):
+        from .figure_export.bridge import open_export
+        return open_export(self)

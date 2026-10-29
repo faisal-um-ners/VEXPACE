@@ -6,8 +6,8 @@ emitters also offer **Current pulse…**. Both dialogs update their figure as
 you edit. **Apply to model** saves the choice; **Cancel** leaves the model alone.
 
 See the [five checked vacuum pulse examples](PULSE_EXAMPLES.md) for three 1D
-shapes and locally refined RZ and YZ problems. Changing settings clears the old
-result display; press Run to calculate the changed pulse.
+shapes and locally refined RZ and YZ problems. Changing settings keeps the last run visible with a notice; press Run to
+calculate the changed pulse and replace the plots.
 
 Try **Examples > source_designer_beam_1d** for a ready-to-edit Gaussian pulse
 with a waterbag velocity spread. This is an illustrative setup, not a benchmark.
