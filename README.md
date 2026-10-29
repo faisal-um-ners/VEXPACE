@@ -53,6 +53,8 @@ component distributions with a live plot. Under beam/photo Emission,
 choose time units and either peak current density or charge per area. Custom
 shapes use editable points or CSV import. Existing models keep their original
 sampling law by default. See the [step-by-step source guide](docs/SOURCE_DESIGNER.md).
+The [checked pulse examples](docs/PULSE_EXAMPLES.md) include square, trapezoid,
+and Gaussian 1D pulses plus vacuum RZ and YZ cases with local mesh refinement.
 
 ## Results
 

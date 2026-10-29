@@ -5,6 +5,10 @@ the settings panel now offers **Velocity distribution…**. Beam and photo
 emitters also offer **Current pulse…**. Both dialogs update their figure as
 you edit. **Apply to model** saves the choice; **Cancel** leaves the model alone.
 
+See the [five checked vacuum pulse examples](PULSE_EXAMPLES.md) for three 1D
+shapes and locally refined RZ and YZ problems. Changing settings clears the old
+result display; press Run to calculate the changed pulse.
+
 Try **Examples > source_designer_beam_1d** for a ready-to-edit Gaussian pulse
 with a waterbag velocity spread. This is an illustrative setup, not a benchmark.
 
@@ -88,7 +92,9 @@ An existing expression is initially preserved and can be previewed over a chosen
 time window. Choosing a preset and applying replaces J(t) and the emitter's start
 and stop times. It does not change the simulation timestep or end time. The
 generated formula is available under **Advanced: evaluation and expression**.
-Parameter references remain in that formula and in the time gates.
+Parameter references remain in that formula and in the time gates. Reopening
+the dialog or changing time units preserves those references and does not add
+repeated unit-conversion expressions.
 
 The displayed charge is the continuous integral of J(t), for spatial profile 1;
 an actual simulation samples J at timesteps, and the spatial profile multiplies

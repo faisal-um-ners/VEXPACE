@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import ast
 import csv
 import io
 from pathlib import Path
@@ -11,7 +12,7 @@ from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
                                QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
                                QPushButton, QScrollArea, QTableWidget, QTableWidgetItem,
-                               QHeaderView, QVBoxLayout, QWidget)
+                               QHeaderView, QVBoxLayout, QWidget, QApplication)
 
 from .. import constants as C
 from ..expr import Evaluator
@@ -195,6 +196,14 @@ class DesignerDialog(QDialog):
         self.error.clear()
         self.buttons.button(QDialogButtonBox.Ok).setEnabled(True)
 
+    def accept(self):
+        focus = QApplication.focusWidget()
+        if focus is not None and self.isAncestorOf(focus):
+            focus.clearFocus()
+        self.refresh()
+        if self.buttons.button(QDialogButtonBox.Ok).isEnabled():
+            super().accept()
+
 
 class VelocityDialog(DesignerDialog):
     def __init__(self, spec, context, beam=False, parent=None):
@@ -359,8 +368,9 @@ class PulseDialog(DesignerDialog):
             self.time_unit.addItem(label, scale)
         self.time_unit.setCurrentIndex(1)
         self.form.addRow("Time unit", self.time_unit)
-        self.start = self.entry("Start time [ns]", self.display_time(p.get("start", "0")))
-        self.duration = self.entry("Full duration [ns]", self.display_time(p.get("duration", default_duration)))
+        self.time_sources = {}
+        self.start = self.time_entry("Start time [ns]", p.get("start", "0"))
+        self.duration = self.time_entry("Full duration [ns]", p.get("duration", default_duration))
         self.normalization = QComboBox()
         self.normalization.addItem("Set the peak current density", "peak")
         self.normalization.addItem("Set total charge per area", "charge")
@@ -368,7 +378,7 @@ class PulseDialog(DesignerDialog):
         self.form.addRow("2. Set strength using", self.normalization)
         self.amount = self.entry("Peak J [A/m²]", p.get("amount", default_amount))
         default_rise = repr(float(default_duration) * .15)
-        self.rise = self.entry("Each rise / fall time [ns]", self.display_time(p.get("rise", default_rise)))
+        self.rise = self.time_entry("Each rise / fall time [ns]", p.get("rise", default_rise))
         self.cutoff = self.entry("Gaussian cutoff [σ]", p.get("cutoff", "3"))
         self.table = PointTable(p.get("points", "0,0\n0.3,1\n0.7,0.5\n1,0"),
                                 ("Position [0–1]", "Relative height"), self.ev)
@@ -400,31 +410,48 @@ class PulseDialog(DesignerDialog):
         self.time_unit.currentIndexChanged.connect(self.unit_changed)
         self.refresh()
 
-    def display_time(self, seconds):
+    def canonical_seconds(self, source):
+        source = str(source).strip()
+        # Fold numeric unit conversions from older files, but retain references
+        # to global parameters so a later parameter edit still updates J(t).
         try:
-            return f"{float(seconds) / self.time_scale:.12g}"
-        except ValueError:
-            return f"({seconds})/({self.time_scale!r})"
+            names = {n.id for n in ast.walk(ast.parse(source, mode="eval")) if isinstance(n, ast.Name)}
+            if not names.intersection(self.ev.params):
+                value = self.ev.num(source)
+                if np.isfinite(value):
+                    return repr(value)
+        except Exception:
+            pass
+        return source
+
+    def time_entry(self, label, seconds):
+        source = self.canonical_seconds(seconds)
+        try:
+            display = f"{self.ev.num(source) / self.time_scale:.12g}"
+        except Exception:
+            display = f"({source})/({self.time_scale!r})"
+        widget = self.entry(label, display)
+        self.time_sources[widget] = (source, widget.text())
+        widget.setToolTip(f"Stored value in seconds: {source}. Enter a value in the selected time unit.")
+        return widget
 
     def seconds_text(self, edit):
-        return f"({self.entry_text(edit)})*({self.time_scale!r})"
+        source, displayed = self.time_sources[edit]
+        if edit.text() == displayed:
+            return source
+        return self.canonical_seconds(f"({edit.text()})*({self.time_scale!r})")
 
     def unit_changed(self, *_):
-        previous_scale = self.time_scale
-        values = [self.entry_text(w) for w in (self.start, self.duration, self.rise)]
+        values = [self.seconds_text(w) for w in (self.start, self.duration, self.rise)]
         self.time_scale = self.time_unit.currentData()
-        for w, value, label in zip((self.start, self.duration, self.rise), values,
+        for w, source, label in zip((self.start, self.duration, self.rise), values,
                                    ("Start time", "Full duration", "Each rise / fall time")):
             try:
-                value = f"{float(value) * previous_scale / self.time_scale:.12g}"
-            except ValueError:
-                value = f"({value})*({previous_scale!r})/({self.time_scale!r})"
-            raw = value
-            try:
-                value = f"{self.ev.num(raw):.12g}"
+                value = f"{self.ev.num(source) / self.time_scale:.12g}"
             except Exception:
-                pass
-            self.entry_sources[w] = (raw, value)
+                value = f"({source})/({self.time_scale!r})"
+            self.time_sources[w] = (source, value)
+            self.entry_sources[w] = (value, value)
             w.blockSignals(True)
             w.setText(value)
             w.blockSignals(False)

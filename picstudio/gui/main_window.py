@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import os
 import shutil
 import sys
@@ -666,6 +667,46 @@ class MainWindow(QMainWindow):
     def mark_dirty(self, *_):
         self.dirty = True
         self.update_title()
+        self._invalidate_previous_results()
+
+    @staticmethod
+    def _model_signature(model):
+        model = M.complete(model)
+        return json.dumps({k: v for k, v in model.items() if not k.startswith("_")},
+                          sort_keys=True)
+
+    def _commit_pending_edits(self):
+        # A toolbar action or F5 need not move focus. Commit QLineEdit and
+        # table-delegate editors before validation and serializing the model.
+        focus = QApplication.focusWidget()
+        if focus is not None and self.isAncestorOf(focus):
+            focus.clearFocus()
+
+    def _invalidate_previous_results(self):
+        if self.proc is not None:
+            return
+        if self.live.data is not None or self.results.res is not None:
+            self.live_timer.stop()
+            self.run_out = None
+            self.live.clear("Model changed. Press Run to calculate the updated pulse and results.")
+            self.results.clear()
+            self.progress.setValue(0)
+            self.status.setText("Model changed — run again for updated results")
+
+    @staticmethod
+    def _history_stamp(directory):
+        try:
+            stat = os.stat(os.path.join(directory, "history.csv"))
+            return stat.st_mtime_ns, stat.st_size
+        except (OSError, TypeError):
+            return None
+
+    def _output_matches_model(self, directory):
+        snapshot = os.path.join(directory, "model.pic.json")
+        try:
+            return not os.path.isfile(snapshot) or self._model_signature(M.load(snapshot)) == self._model_signature(self.model)
+        except (OSError, ValueError):
+            return False
 
     def update_title(self):
         nm = os.path.basename(self.path) if self.path else "untitled"
@@ -726,11 +767,15 @@ class MainWindow(QMainWindow):
         self.dirty = False
         self._ok_example_edit = False
         self._clear_previous()
+        self.results.clear()
         self.refresh_all()
         self.msg(f"Opened {fn}")
         out = self.output_dir()
         if out and os.path.exists(os.path.join(out, "history.csv")):
-            self.results.load(out)
+            if self._output_matches_model(out):
+                self.results.load(out)
+            else:
+                self.msg("Existing results belong to earlier model settings. Press Run for updated results.")
 
     def open_example(self, p):
         if not self._can_open_files():
@@ -747,6 +792,7 @@ class MainWindow(QMainWindow):
         self.msg(f"Loaded example {os.path.basename(p)} (use Save as... to keep a copy)")
 
     def save(self):
+        self._commit_pending_edits()
         if not self.path:
             return self.save_as()
         ex_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "examples"))
@@ -797,6 +843,7 @@ class MainWindow(QMainWindow):
         self.log.appendPlainText(text)
 
     def check_model(self):
+        self._commit_pending_edits()
         msgs = M.validate(self.model)
         for lvl, m in msgs:
             self.msg(f"[{lvl}] {m}")
@@ -828,12 +875,15 @@ class MainWindow(QMainWindow):
             return
         import time as _time
         self.launch_time = _time.time()
+        self._run_signature = self._model_signature(self.model)
+        self._old_history_stamp = self._history_stamp(out_dir)
         if out_dir:              # never show the previous run's live file for the new run
             try:
                 os.remove(os.path.join(out_dir, "live.npz"))
             except OSError:
                 pass
             self.live.clear("Starting simulation...")
+            self.results.clear()
         self.proc = QProcess(self)
         self._set_file_open_enabled(False)
         self.proc.setProcessChannelMode(QProcess.MergedChannels)
@@ -857,6 +907,10 @@ class MainWindow(QMainWindow):
             self.tabs.setCurrentWidget(self.live)
 
     def _prepare_run(self):
+        if self.proc is not None:
+            QMessageBox.information(self, "Busy", "A simulation is already running.")
+            return None
+        self._commit_pending_edits()
         if not self.check_model():
             return None
         if not self.path:
@@ -864,7 +918,8 @@ class MainWindow(QMainWindow):
             if not self.save_as():
                 return None
         elif self.dirty:
-            self.save()
+            if not self.save():
+                return None
         return self.output_dir()
 
     def run(self):
@@ -946,12 +1001,14 @@ class MainWindow(QMainWindow):
         self._launch([sys.executable, "-m", "picstudio", "qcal", self.path], None)
 
     def _prepare_run_path(self):
+        self._commit_pending_edits()
         if not self.path:
             QMessageBox.information(self, "Save first", "Please save the model first.")
             if not self.save_as():
                 return False
         elif self.dirty:
-            self.save()
+            if not self.save():
+                return False
         return True
 
     def _reload_after_qcal(self):
@@ -1066,8 +1123,18 @@ class MainWindow(QMainWindow):
         self.proc = None
         self._set_file_open_enabled(True)
         if self.run_out:
-            self.results.load(self.run_out)
+            previous = getattr(self, "_old_history_stamp", None)
+            unchanged = previous is not None and self._history_stamp(self.run_out) == previous
+            if not unchanged:
+                self.results.load(self.run_out)
+            else:
+                self.live.clear("No new results were produced. The earlier run has not been reloaded.")
+                self.results.clear()
+                self.msg("No new output: earlier results were not reloaded.")
         self.run_out = None
+        if getattr(self, "_run_signature", None) != self._model_signature(self.model):
+            self._invalidate_previous_results()
+            self.msg("Settings changed during the run. Press Run to calculate those updated settings.")
         cb = getattr(self, "_after_proc", None)
         self._after_proc = None
         if cb is not None and code == 0:
@@ -1092,8 +1159,14 @@ class MainWindow(QMainWindow):
     def load_results(self):
         if not self._can_open_files():
             return
+        self._commit_pending_edits()
         out = self.output_dir()
         if out and os.path.isdir(out):
+            if not self._output_matches_model(out):
+                QMessageBox.information(self, "Model changed",
+                    "These results belong to earlier settings. Press Run for the updated model. "
+                    "Use Open results folder in the Results tab to inspect an earlier run explicitly.")
+                return
             self.results.load(out)
             self.tabs.setCurrentWidget(self.results)
         else:
