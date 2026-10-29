@@ -447,7 +447,10 @@ class LivePanel(QWidget):
         for k in keys:
             v = H[:, cols.index(k)]
             e.update(v[late] if late.any() else v)
-            a.plot(t, v, lw=1.2, label=k)
+            # Current at t[i] is charge / time over (t[i-1], t[i]].
+            # Joining these averages diagonally invents ramps on short pulses.
+            a.plot(t, v, lw=1.2, label=k,
+                   drawstyle="steps-pre" if k.startswith(("I_", "Iemit_")) else "default")
         a.set_xlim(0.0, t_end if t_end > 0 else (t[-1] or 1.0))
         lim = e.limits(0.08)
         if lim:

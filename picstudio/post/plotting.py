@@ -420,7 +420,9 @@ def plot_history(ax, H, cols, keys, logy=False):
     t = H[:, cols.index("t")]
     for k in keys:
         if k in cols:
-            ax.plot(t, H[:, cols.index(k)], label=k, lw=1.2)
+            # Currents are averages over the interval ending at each timestamp.
+            ax.plot(t, H[:, cols.index(k)], label=k, lw=1.2,
+                    drawstyle="steps-pre" if k.startswith(("I_", "Iemit_")) else "default")
     ax.set_xlabel("t (s)")
     if logy:
         ax.set_yscale("log")
