@@ -1,5 +1,9 @@
 # Six short-pulse PIC examples
 
+For a guided editor with a live figure, select **Emission > Current pulse…**.
+See the [source designer guide](../docs/SOURCE_DESIGNER.md). Existing example
+expressions remain unchanged until you choose and apply a new preset.
+
 Open these models in VEXPACE with the **tfgpu** environment. They appear under
 **File > Examples** after restarting the application. Each is a self-contained
 `.pic.json` model and runs with the existing solver; no helper script is required
@@ -33,7 +37,7 @@ window; extend it if particles remain in the gap.
 The trapezoid uses an inferred ramp fraction `0.15` of its full support, so its
 support is `tau/(1-ramp_fraction)`. The truncated Gaussian has inferred cutoff
 +/-2.5 standard deviations (diode) or +/-2 (drift); `tau` denotes its FWHM.
-VEXPACE's evaluator has no `erf`, so `gaussian_retained_fraction` is the exact
+These reference files store `gaussian_retained_fraction` explicitly (older evaluator versions lacked `erf`); it is the exact
 numerical value generated with that cutoff. If changing the cutoff, update both
 values consistently or regenerate using `make_short_pulse_examples.py`.
 
@@ -68,7 +72,7 @@ is included in each example's **Model > Description**.
 | `ramp_fraction` | Duration of **each** trapezoid ramp divided by `support`; default `0.15`, valid `0 < ramp_fraction <= 0.5`. Unused for square/Gaussian. |
 | `sigma_t` | Gaussian time standard deviation `tau/(2*sqrt(2*log(2)))`, in seconds. Unused for square/trapezoid. |
 | `gaussian_cutoff_sigma` | Number of standard deviations on each side of the Gaussian centre; defaults 2.5 (diode), 2 (drift). |
-| `gaussian_retained_fraction` | `erf(gaussian_cutoff_sigma/sqrt(2))`; stored numerically because the expression evaluator has no `erf`. Update it if changing the cutoff. |
+| `gaussian_retained_fraction` | `erf(gaussian_cutoff_sigma/sqrt(2))`; stored numerically for compatibility with older versions. Update it if changing the cutoff. |
 | `dt_fraction` | Requested maximum timestep divided by `T`; default `0.0002`. |
 | `sample_dt` | Actual step `support/ceil(support/(dt_fraction*T))`; makes support an integer number of steps without exceeding the requested timestep. |
 | `end_over_T` | Observation duration divided by `T`; independent of emission duration. |

@@ -428,7 +428,14 @@ class Emitter:
         if model == "beam":
             gam = 1.0 + self.energy * C.e / (m * C.c ** 2)
             un[:] = C.c * np.sqrt(gam ** 2 - 1.0)
-            if self.T_eV > 0:
+            kind = self.spec.get("velocity_distribution", "default")
+            if kind in ("cold", "waterbag", "trapezoid", "arbitrary"):
+                from .distributions import sample_offsets
+                offsets = sample_offsets(self.spec, self.ev, rng, N)
+                un += offsets[0]
+                ut += offsets[1]
+                uo += offsets[2]
+            elif self.T_eV > 0:
                 vt = np.sqrt(self.T_eV * C.e / m)
                 un += vt * rng.standard_normal(N)
                 ut += vt * rng.standard_normal(N)

@@ -73,25 +73,32 @@ def load_particles(spec, species, grid, mats, ev, rng, rank=0, size=1):
     ok = W > 0
     Z, Y, W, slot = Z[ok], Y[ok], W[ok], slot[ok]
     n = len(Z)
-    T = ev.num(spec.get("temperature", 0))
-    drift = [ev.num(v) for v in spec.get("drift", [0, 0, 0])]
-    vth = np.sqrt(max(T, 0.0) * C.e / species.m)
-    U = np.empty((3, n))
-    quiet_v = quiet and vth > 0 and ppc >= 16
-    if quiet_v:
-        # quiet start in velocity (Birdsall & Langdon, Sec. 16-6): in every cell the ppc particles carry
-        # the ppc equal-probability quantiles of the Maxwellian, independently shuffled per component
-        from scipy.special import erfinv
-        quant = np.sqrt(2.0) * erfinv(2.0 * (np.arange(ppc) + 0.5) / ppc - 1.0)
-        blk, slot = slot // ppc, slot % ppc
-        blk = np.unique(blk, return_inverse=True)[1] if n else blk
-        nblk = int(blk.max()) + 1 if n else 0
-    for c in range(3):
+    kind = spec.get("velocity_distribution", "default")
+    if kind in ("cold", "waterbag", "trapezoid", "arbitrary"):
+        from .distributions import sample_offsets
+        drift = np.array([ev.num(v) for v in spec.get("drift", [0, 0, 0])])
+        U = drift[:, None] + sample_offsets(spec, ev, rng, n, quiet=quiet, ppc=ppc,
+                                            cells=slot // ppc, slots=slot % ppc)
+    else:
+        T = ev.num(spec.get("temperature", 0))
+        drift = [ev.num(v) for v in spec.get("drift", [0, 0, 0])]
+        vth = np.sqrt(max(T, 0.0) * C.e / species.m)
+        U = np.empty((3, n))
+        quiet_v = quiet and vth > 0 and ppc >= 16
         if quiet_v:
-            perm = np.argsort(rng.random((nblk, ppc)), axis=1)
-            U[c] = drift[c] + vth * quant[perm[blk, slot]]
-        else:
-            U[c] = drift[c] + (vth * rng.standard_normal(n) if vth > 0 else 0.0)
+            # quiet start in velocity (Birdsall & Langdon, Sec. 16-6): in every cell the ppc particles carry
+            # the ppc equal-probability quantiles of the Maxwellian, independently shuffled per component
+            from scipy.special import erfinv
+            quant = np.sqrt(2.0) * erfinv(2.0 * (np.arange(ppc) + 0.5) / ppc - 1.0)
+            blk, slot = slot // ppc, slot % ppc
+            blk = np.unique(blk, return_inverse=True)[1] if n else blk
+            nblk = int(blk.max()) + 1 if n else 0
+        for c in range(3):
+            if quiet_v:
+                perm = np.argsort(rng.random((nblk, ppc)), axis=1)
+                U[c] = drift[c] + vth * quant[perm[blk, slot]]
+            else:
+                U[c] = drift[c] + (vth * rng.standard_normal(n) if vth > 0 else 0.0)
     pert = spec.get("perturbation", "none")
     if pert != "none":
         A = ev.num(spec.get("pert_amplitude", 0))

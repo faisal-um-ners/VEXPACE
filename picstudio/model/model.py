@@ -160,6 +160,27 @@ def validate(model: dict) -> list[tuple[str, str]]:
         for it in m[sec]:
             if it["species"] not in names:
                 msgs.append(("error", f"{sec} '{it['name']}': unknown species '{it['species']}'"))
+    from ..sources.distributions import validate_distribution
+    for sec in ("loaders", "emitters"):
+        for it in m[sec]:
+            try:
+                if sec == "loaders" or it.get("model") == "beam":
+                    validate_distribution(it, ev)
+                    if it.get("velocity_distribution") == "maxwellian":
+                        import math
+                        T = ev.num(it.get("temperature", 0))
+                        if not math.isfinite(T) or T < 0:
+                            raise ValueError("Temperature must be finite and at least zero.")
+            except Exception as exc:
+                msgs.append(("error", f"{sec} '{it.get('name', '')}' velocity distribution: {exc}"))
+    from ..sources.pulses import build_pulse
+    for it in m["emitters"]:
+        p = it.get("pulse_builder", {})
+        if it.get("model") in ("beam", "photo") and p and p.get("generated_expression") == str(it.get("current_density", "")):
+            try:
+                build_pulse(p, ev)
+            except Exception as exc:
+                msgs.append(("error", f"Emitter '{it.get('name', '')}' pulse: {exc}"))
     if solver == "electrostatic" and m["sources"]:
         msgs.append(("warning", "EM sources are ignored by the electrostatic solver"))
     if not m["species"]:

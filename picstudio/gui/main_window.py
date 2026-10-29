@@ -403,7 +403,11 @@ class MainWindow(QMainWindow):
         comps = {"1D-Z": ("z", "y", "x"), "2D-ZY": ("z", "y", "x"),
                  "2D-RZ": ("z", "r", "theta")}[self.model["simulation"]["geometry"]]
         ctx = {"species": [s["name"] for s in self.model["species"]],
-               "objects": [o["name"] for o in self.model["objects"]], "components": comps}
+               "objects": [o["name"] for o in self.model["objects"]], "components": comps,
+               "parameters": self.model["parameters"], "species_specs": self.model["species"],
+               "geometry": self.model["simulation"]["geometry"],
+               "simulation_dt": self.model["simulation"].get("dt", ""),
+               "simulation_end": self.model["simulation"].get("t_end", "")}
         if sec == "root":
             title = "Model"
             from PySide6.QtWidgets import QFormLayout, QLineEdit

@@ -10,11 +10,12 @@ from __future__ import annotations
 import ast
 import math
 import numpy as np
+from scipy.special import erf
 
 from . import constants as C
 
 _ALLOWED_FUNCS = {
-    "sin": np.sin, "cos": np.cos, "tan": np.tan, "exp": np.exp, "log": np.log,
+    "erf": erf, "sin": np.sin, "cos": np.cos, "tan": np.tan, "exp": np.exp, "log": np.log,
     "log10": np.log10, "sqrt": np.sqrt, "abs": np.abs, "tanh": np.tanh,
     "sinh": np.sinh, "cosh": np.cosh, "arcsin": np.arcsin, "arccos": np.arccos,
     "arctan": np.arctan, "arctan2": np.arctan2, "minimum": np.minimum,

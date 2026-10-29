@@ -1,0 +1,154 @@
+{
+  "version": 1,
+  "name": "Guided source design: Gaussian pulse and waterbag velocities",
+  "description": "Illustrative source-designer example. Select Emission > pulsed_beam, then Current pulse or Velocity distribution to edit the curves. This is a teaching setup, not a benchmark. Existing solvers and particle dynamics are unchanged.",
+  "parameters": {
+    "pulse_start": "1e-10",
+    "pulse_duration": "5e-10",
+    "peak_J": "100",
+    "beam_energy": "1000",
+    "spread": "2e5"
+  },
+  "boundaries": {
+    "z_min": {
+      "name": "",
+      "field": "conductor",
+      "voltage": "0",
+      "particles": "absorb",
+      "absorber_cells": 16
+    },
+    "z_max": {
+      "name": "",
+      "field": "conductor",
+      "voltage": "0",
+      "particles": "absorb",
+      "absorber_cells": 16
+    },
+    "y_min": {
+      "name": "",
+      "field": "conductor",
+      "voltage": "0",
+      "particles": "absorb",
+      "absorber_cells": 16
+    },
+    "y_max": {
+      "name": "",
+      "field": "conductor",
+      "voltage": "0",
+      "particles": "absorb",
+      "absorber_cells": 16
+    }
+  },
+  "simulation": {
+    "geometry": "1D-Z",
+    "solver": "electrostatic",
+    "t_end": "1e-9",
+    "dt": "2.5e-13",
+    "cfl": "0.95",
+    "n_steps": "",
+    "relativistic": true,
+    "particle_pusher": "boris",
+    "field_gathering": "auto",
+    "smoothing": 0,
+    "em_conductors": "held at their potentials",
+    "current_filter": 0,
+    "axis_correction": true,
+    "initial_field": "poisson",
+    "seed": 12345,
+    "max_particles": "2e7"
+  },
+  "domain": {
+    "z_min": "0",
+    "z_max": "1e-3",
+    "nz": "80",
+    "y_min": "0",
+    "y_max": "1e-2",
+    "ny": "128"
+  },
+  "diagnostics": {
+    "output_dir": "output_source_designer_beam_1d",
+    "history_every": "10",
+    "field_every": "100",
+    "particle_every": "100",
+    "max_dump_particles": "50000",
+    "live_every": "1"
+  },
+  "parallel": {
+    "mode": "threads",
+    "ranks": 4,
+    "threads": 0
+  },
+  "sweep": {
+    "enabled": false,
+    "parameter": "",
+    "values": "linspace(0,1,5)",
+    "workers": 2
+  },
+  "mesh_refinements": [],
+  "objects": [],
+  "species": [
+    {
+      "name": "electrons",
+      "preset": "electron",
+      "charge": "-1",
+      "mass": "me",
+      "beam_self_B": false,
+      "motion": "full"
+    }
+  ],
+  "loaders": [],
+  "emitters": [
+    {
+      "name": "pulsed_beam",
+      "species": "electrons",
+      "model": "beam",
+      "surface": "segment",
+      "object": "",
+      "z0": "0",
+      "y0": "0",
+      "z1": "0",
+      "y1": "1e-3",
+      "normal": "auto",
+      "current_density": "((peak_J))*(where(((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))<(0.3),(((0)/max((0),(1),(0.5),(0)))+((((1)/max((0),(1),(0.5),(0)))-((0)/max((0),(1),(0.5),(0))))/((0.3)-(0)))*(((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))-(0))),where(((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))<(0.7),(((1)/max((0),(1),(0.5),(0)))+((((0.5)/max((0),(1),(0.5),(0)))-((1)/max((0),(1),(0.5),(0))))/((0.7)-(0.3)))*(((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))-(0.3))),where(((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))<(1),(((0.5)/max((0),(1),(0.5),(0)))+((((0)/max((0),(1),(0.5),(0)))-((0.5)/max((0),(1),(0.5),(0))))/((1)-(0.7)))*(((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))-(0.7))),((0)/max((0),(1),(0.5),(0)))))))*where((((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))>=0)&(((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))<1),1,0)",
+      "energy": "beam_energy",
+      "temperature": "0",
+      "work_function": "4.5",
+      "beta": "1",
+      "cathode_temperature": "2000",
+      "richardson": "1.20173e6",
+      "schottky": true,
+      "relax": "1.0",
+      "profile": "1",
+      "particles_per_cell": "16",
+      "t_start": "(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09))-(0)",
+      "t_stop": "(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09))+(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09))-(0)",
+      "velocity_distribution": "arbitrary",
+      "velocity_width": [
+        "spread",
+        "0",
+        "0"
+      ],
+      "velocity_plateau": "0.5",
+      "velocity_pdf_0": "-100000,0\n0,1\n100000,0\n110000,1",
+      "velocity_pdf_1": "-100000,0\n0,1\n100000,0",
+      "velocity_pdf_2": "-100000,0\n0,1\n100000,0",
+      "pulse_builder": {
+        "shape": "arbitrary",
+        "start": "((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)",
+        "duration": "((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)",
+        "normalization": "peak",
+        "amount": "peak_J",
+        "rise": "(((((0.15)*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)",
+        "cutoff": "3",
+        "points": "0,0\n0.3,1\n0.7,0.5\n1,0",
+        "sample_shift": "0",
+        "generated_expression": "((peak_J))*(where(((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))<(0.3),(((0)/max((0),(1),(0.5),(0)))+((((1)/max((0),(1),(0.5),(0)))-((0)/max((0),(1),(0.5),(0))))/((0.3)-(0)))*(((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))-(0))),where(((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))<(0.7),(((1)/max((0),(1),(0.5),(0)))+((((0.5)/max((0),(1),(0.5),(0)))-((1)/max((0),(1),(0.5),(0))))/((0.7)-(0.3)))*(((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))-(0.3))),where(((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))<(1),(((0.5)/max((0),(1),(0.5),(0)))+((((0)/max((0),(1),(0.5),(0)))-((0.5)/max((0),(1),(0.5),(0))))/((1)-(0.7)))*(((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))-(0.7))),((0)/max((0),(1),(0.5),(0)))))))*where((((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))>=0)&(((t+(0)-(((((((pulse_start)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))/(((((((pulse_duration)/(1e-09))*(1e-09))/(1e-09))*(1e-09))/(1e-09))*(1e-09)))<1),1,0)"
+      }
+    }
+  ],
+  "external_fields": [],
+  "sources": [],
+  "probes": [],
+  "line_probes": [],
+  "power_lines": []
+}

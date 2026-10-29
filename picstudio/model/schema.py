@@ -244,6 +244,26 @@ SPECIES = [
                "e.g. for a cathode lying along y = 0 that emits in +y (2D only)."),
 ]
 
+# The GUI edits these fields in a guided dialog with a plot, rather than a raw form.
+VELOCITY_FIELD_NAMES = {"velocity_distribution", "velocity_width", "velocity_plateau",
+                        "velocity_pdf_0", "velocity_pdf_1", "velocity_pdf_2"}
+
+
+def velocity_fields(beam=False):
+    visible = {"model": ["beam"]} if beam else {}
+    return [
+        Field("velocity_distribution", "choice", "default", "Velocity distribution",
+              choices=("default", "cold", "maxwellian", "waterbag", "trapezoid", "arbitrary"),
+              show_if=visible, help="Default preserves the existing temperature/energy law. Custom shapes are independent component PDFs in u=gamma*v."),
+        Field("velocity_width", "vec3", ["1e5", "1e5", "1e5"], "Half-widths", "m/s",
+              show_if={**visible, "velocity_distribution": ["waterbag", "trapezoid"]}),
+        Field("velocity_plateau", "expr", "0.5", "Plateau fraction", "",
+              show_if={**visible, "velocity_distribution": ["trapezoid"]}),
+        *[Field(f"velocity_pdf_{c}", "text", "-100000, 0\n0, 1\n100000, 0", f"Component {c} PDF",
+                show_if={**visible, "velocity_distribution": ["arbitrary"]}) for c in range(3)],
+    ]
+
+
 LOADER = [
     Field("name", "str", "plasma"),
     Field("species", "str", "electrons"),
@@ -263,6 +283,8 @@ LOADER = [
           help="density: relative amplitude;  velocity: m/s", show_if={"perturbation": ["density", "velocity"]}),
     Field("pert_mode", "expr", "1", "Mode number (along z)", show_if={"perturbation": ["density", "velocity"]}),
 ]
+
+LOADER += velocity_fields()
 
 EMISSION_MODELS = ("beam", "scl", "fowler_nordheim", "thermionic", "photo")
 NORMALS = ("auto", "+z", "-z", "+y", "-y")
@@ -302,6 +324,8 @@ EMITTER = [
     Field("t_start", "expr", "0", "Start time", "s"),
     Field("t_stop", "expr", "1e9", "Stop time", "s"),
 ]
+
+EMITTER += velocity_fields(beam=True)
 
 EXTFIELD_TYPES = ("uniform", "expression", "coil", "solenoid")
 EXTFIELD = [

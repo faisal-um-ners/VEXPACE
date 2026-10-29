@@ -44,6 +44,16 @@ name VEL-PIC.)
 - **Validation.** 107 checks against analytic theory, published results and the WarpX code
   ([validation report](benchmarks/results/VALIDATION_REPORT.md)).
 
+## Guided source design
+
+Select **Particle Loading**, or a **beam** under **Emission**, then choose
+**Velocity distribution…** for cold, Maxwellian, waterbag, trapezoid, or custom
+component distributions with a live plot. Under beam/photo Emission,
+**Current pulse…** creates square, trapezoid, Gaussian, and tabulated pulses;
+choose time units and either peak current density or charge per area. Custom
+shapes use editable points or CSV import. Existing models keep their original
+sampling law by default. See the [step-by-step source guide](docs/SOURCE_DESIGNER.md).
+
 ## Results
 
 ### Field-only electrostatics: two-cylinder lens

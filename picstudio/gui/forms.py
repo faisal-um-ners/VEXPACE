@@ -4,10 +4,43 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFormLayout, QGroupBox, QHBoxLayout, QHeaderView,
                                QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox, QTableWidget,
-                               QTableWidgetItem, QVBoxLayout, QWidget)
+                               QTableWidgetItem, QVBoxLayout, QWidget, QSizePolicy)
 
 from ..expr import Evaluator
 from ..model import schema as S
+
+
+class WrappingInfoLabel(QLabel):
+    """Keep all wrapped lines visible inside a spanning QFormLayout row.
+
+    QFormLayout can retain a short preferred height when adjacent rows are
+    hidden after a choice changes. Reserve the label's actual height for its
+    current width, including after a splitter resize or a font change.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWordWrap(True)
+        self.setObjectName("hint")
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+    def _fit_text(self):
+        height = max(0, self.heightForWidth(max(1, self.width())))
+        if self.minimumHeight() != height:
+            self.setMinimumHeight(height)
+            self.updateGeometry()
+
+    def setText(self, text):
+        super().setText(text)
+        self._fit_text()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_text()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        self._fit_text()
 
 
 class FieldForm(QWidget):
@@ -25,6 +58,10 @@ class FieldForm(QWidget):
         self.form = QFormLayout(self)
         self.form.setLabelAlignment(Qt.AlignRight)
         self.form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        self.source_kind = "loader" if fields is S.LOADER else ("emitter" if fields is S.EMITTER else None)
+        self.source_helpers = None
+        if self.source_kind:
+            self._add_source_helpers()
         for f in fields:
             w = self._make(f)
             lab = QLabel(f.label + (f"  [{f.unit}]" if f.unit else ""))
@@ -51,6 +88,52 @@ class FieldForm(QWidget):
             self.explain.setStyleSheet("QLabel#formExplain { font-size: 11px; padding-top: 10px; }")
             self.form.addRow(self.explain)
         self.update_visibility()
+
+    def _add_source_helpers(self):
+        self.source_helpers = QGroupBox("Design a shape with a preview")
+        layout = QVBoxLayout(self.source_helpers)
+        self.velocity_button = QPushButton("Velocity distribution…")
+        self.velocity_button.clicked.connect(lambda: self._source_dialog("velocity"))
+        layout.addWidget(self.velocity_button)
+        self.velocity_summary = WrappingInfoLabel()
+        layout.addWidget(self.velocity_summary)
+        self.pulse_button = QPushButton("Current pulse…")
+        self.pulse_button.clicked.connect(lambda: self._source_dialog("pulse"))
+        layout.addWidget(self.pulse_button)
+        self.pulse_summary = WrappingInfoLabel()
+        layout.addWidget(self.pulse_summary)
+        self.source_hint = WrappingInfoLabel()
+        layout.addWidget(self.source_hint)
+        self.form.addRow(self.source_helpers)
+
+    def _source_dialog(self, kind):
+        from .source_designer import VelocityDialog, PulseDialog
+        from PySide6.QtWidgets import QDialog
+        # Commit any focused ordinary editor before taking a snapshot.
+        focus = self.focusWidget()
+        if focus is not None:
+            focus.clearFocus()
+        try:
+            dialog = (VelocityDialog(self.values, self.context, self.source_kind == "emitter", self)
+                      if kind == "velocity" else PulseDialog(self.values, self.context, self))
+        except Exception as exc:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Check source settings", str(exc))
+            return
+        if dialog.exec() != QDialog.Accepted:
+            return
+        updated = dialog.result_spec()
+        changes = [key for key, value in updated.items() if self.values.get(key) != value]
+        self.values.update(updated)
+        for key in changes:
+            widget = self.widgets.get(key)
+            if isinstance(widget, QLineEdit):
+                widget.blockSignals(True)
+                widget.setText(str(self.values[key]))
+                widget.blockSignals(False)
+        self.update_visibility()
+        for key in changes:
+            self.changed.emit(key)
 
     def _make(self, f):
         v = self.values.get(f.name, f.default)
@@ -125,16 +208,36 @@ class FieldForm(QWidget):
         if self.values.get(name) == val:
             return
         self.values[name] = val
+        self.update_visibility()
         if structural:
-            self.update_visibility()
             self.structure_changed.emit()
         self.changed.emit(name)
 
     def update_visibility(self):
         for f in self.fields:
-            vis = S.is_visible(f, self.values)
+            vis = S.is_visible(f, self.values) and f.name not in S.VELOCITY_FIELD_NAMES
+            if self.source_kind and f.name == "temperature" and self.values.get("velocity_distribution", "default") in ("cold", "waterbag", "trapezoid", "arbitrary"):
+                if self.source_kind == "loader" or self.values.get("model") == "beam":
+                    vis = False
             self.widgets[f.name].setVisible(vis)
             self.rows[f.name].setVisible(vis)
+        if self.source_helpers is not None:
+            from .source_designer import VELOCITY_LABELS
+            beam = self.source_kind == "loader" or self.values.get("model") == "beam"
+            pulse = self.source_kind == "emitter" and self.values.get("model") in ("beam", "photo")
+            self.source_helpers.setVisible(True)
+            self.source_hint.setVisible(not beam)
+            if not beam:
+                self.source_hint.setText("Photoemission keeps its own energy and angular distribution." if pulse else
+                                         "This emission model keeps its physical emission law. To prescribe a current pulse and velocity shape, choose Emission model → beam.")
+            self.velocity_button.setVisible(beam)
+            self.velocity_summary.setVisible(beam)
+            self.velocity_summary.setText(VELOCITY_LABELS.get(self.values.get("velocity_distribution", "default"), "Custom distribution"))
+            self.pulse_button.setVisible(pulse)
+            self.pulse_summary.setVisible(pulse)
+            p = self.values.get("pulse_builder", {})
+            configured = p.get("generated_expression") == str(self.values.get("current_density", "0"))
+            self.pulse_summary.setText((p.get("shape", "").capitalize() + " pulse") if configured else "Current expression · choose a preset or preview it")
         if self.material_summary is not None:
             material = self.values.get("material", "conductor")
             lines = S.MATERIAL_SUMMARIES.get(material)
@@ -151,7 +254,7 @@ def explain_html(fields, values, title="Meaning of the settings"):
     import html
     parts = []
     for f in fields:
-        if not S.is_visible(f, values) or not f.help:
+        if f.name in S.VELOCITY_FIELD_NAMES or not S.is_visible(f, values) or not f.help:
             continue
         unit = f" [{f.unit}]" if f.unit else ""
         parts.append(f"<b>{html.escape(f.label)}</b>{html.escape(unit)}: {html.escape(f.help)}")

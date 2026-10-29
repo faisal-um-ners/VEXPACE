@@ -355,18 +355,24 @@ def load_local_particles(spec,species,backend,ev,rng,rank=0,size=1):
     density=np.broadcast_to(np.asarray(ev.value(spec['density'],z=Z,y=Y,r=Y,t=0),float),Z.shape)
     W=density*mesh.area[cell]/ppc*(2*np.pi*Y if g.rz else 1)
     keep=W>0;Z,Y,W,cell,slot=Z[keep],Y[keep],W[keep],cell[keep],slot[keep]
-    n=len(Z);temperature=ev.num(spec.get('temperature',0));vt=np.sqrt(max(temperature,0)*C.e/species.m)
-    drift=[ev.num(v) for v in spec.get('drift',[0,0,0])];U=np.empty((3,n))
-    if quiet and temperature>0 and ppc>=16:
-        from scipy.special import erfinv
-        quant=np.sqrt(2)*erfinv(2*(np.arange(ppc)+.5)/ppc-1)
-        _,block=np.unique(cell,return_inverse=True)
-        nb=int(block.max())+1 if n else 0
-        for c in range(3):
-            perm=np.argsort(rng.random((nb,ppc)),axis=1)
-            U[c]=drift[c]+vt*quant[perm[block,slot]]
+    n=len(Z)
+    if spec.get('velocity_distribution', 'default') in ('cold', 'waterbag', 'trapezoid', 'arbitrary'):
+        from ..sources.distributions import sample_offsets
+        drift=np.array([ev.num(v) for v in spec.get('drift',[0,0,0])])
+        U=drift[:,None]+sample_offsets(spec,ev,rng,n,quiet=quiet,ppc=ppc,cells=cell,slots=slot)
     else:
-        for c in range(3):U[c]=drift[c]+(vt*rng.standard_normal(n) if vt>0 else 0)
+        n=len(Z);temperature=ev.num(spec.get('temperature',0));vt=np.sqrt(max(temperature,0)*C.e/species.m)
+        drift=[ev.num(v) for v in spec.get('drift',[0,0,0])];U=np.empty((3,n))
+        if quiet and temperature>0 and ppc>=16:
+            from scipy.special import erfinv
+            quant=np.sqrt(2)*erfinv(2*(np.arange(ppc)+.5)/ppc-1)
+            _,block=np.unique(cell,return_inverse=True)
+            nb=int(block.max())+1 if n else 0
+            for c in range(3):
+                perm=np.argsort(rng.random((nb,ppc)),axis=1)
+                U[c]=drift[c]+vt*quant[perm[block,slot]]
+        else:
+            for c in range(3):U[c]=drift[c]+(vt*rng.standard_normal(n) if vt>0 else 0)
     perturb=spec.get('perturbation','none')
     if perturb!='none':
         A=ev.num(spec.get('pert_amplitude',0));mode=ev.num(spec.get('pert_mode',1));k=2*np.pi*mode/(z1-z0)
