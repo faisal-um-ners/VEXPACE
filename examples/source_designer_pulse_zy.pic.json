@@ -142,7 +142,7 @@
       "z1": "0",
       "y1": "R",
       "normal": "+z",
-      "current_density": "((100))*(max(0,min(1,min(((t+(pic_dt/2)-(1e-10))/(3e-10)),1-((t+(pic_dt/2)-(1e-10))/(3e-10)))/(((6e-11)/(3e-10))))))*where((((t+(pic_dt/2)-(1e-10))/(3e-10))>=0)&(((t+(pic_dt/2)-(1e-10))/(3e-10))<1),1,0)",
+      "current_density": "((100))*(1)*where((((t+(pic_dt/2)-(1e-10))/(3e-10))>=0)&(((t+(pic_dt/2)-(1e-10))/(3e-10))<1),1,0)",
       "energy": "beam_energy",
       "temperature": "0",
       "work_function": "4.5",
@@ -152,7 +152,7 @@
       "schottky": true,
       "relax": "1.0",
       "profile": "1",
-      "particles_per_cell": "4",
+      "particles_per_cell": "32",
       "t_start": "(1e-10)-(pic_dt/2)",
       "t_stop": "(1e-10)+(3e-10)-(pic_dt/2)",
       "velocity_distribution": "waterbag",
@@ -166,7 +166,7 @@
       "velocity_pdf_1": "-100000, 0\n0, 1\n100000, 0",
       "velocity_pdf_2": "-100000, 0\n0, 1\n100000, 0",
       "pulse_builder": {
-        "shape": "trapezoid",
+        "shape": "square",
         "start": "1e-10",
         "duration": "3e-10",
         "normalization": "peak",
@@ -175,7 +175,7 @@
         "cutoff": "3",
         "points": "0,0\n0.3,1\n0.7,0.5\n1,0",
         "sample_shift": "pic_dt/2",
-        "generated_expression": "((100))*(max(0,min(1,min(((t+(pic_dt/2)-(1e-10))/(3e-10)),1-((t+(pic_dt/2)-(1e-10))/(3e-10)))/(((6e-11)/(3e-10))))))*where((((t+(pic_dt/2)-(1e-10))/(3e-10))>=0)&(((t+(pic_dt/2)-(1e-10))/(3e-10))<1),1,0)"
+        "generated_expression": "((100))*(1)*where((((t+(pic_dt/2)-(1e-10))/(3e-10))>=0)&(((t+(pic_dt/2)-(1e-10))/(3e-10))<1),1,0)"
       }
     }
   ],
