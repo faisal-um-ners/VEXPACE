@@ -16,14 +16,18 @@ fraction of the emitted current has normal speed vₙ. Every law emits only out 
 
 | Choice | P(vₙ) | Inputs |
 |---|---|---|
-| Keep existing energy / temperature law | beam speed + isotropic Gaussian of √(kT/m) (older models) | energy, temperature |
 | Cold | all at the beam speed v_b of the beam energy | energy [eV] |
 | Maxwellian (thermal flux) | (m/kT) vₙ exp(−m vₙ²/2kT), shifted by the energy offset | kT [eV], energy [eV] |
-| Truncated Gaussian | Gaussian of mean μ and σ, cut at vₙ = 0 and renormalised | μ [m/s] (blank = v_b), σ [m/s] |
-| Waterbag (uniform flux) | constant on [v₋, v₊] | v₋, v₊ [m/s] |
-| Waterbag (uniform phase density) | ∝ vₙ on [v₋, v₊] (constant f) | v₋, v₊ [m/s] |
+| Gaussian | Gaussian of mean μ and σ between cut-offs v_min ≥ 0 and v_max | μ [m/s] (blank = v_b), σ, v_min, v_max |
+| Waterbag | uniform on [v₋, v₊] | v₋, v₊ [m/s] |
 | Trapezoid | linear rise, plateau fraction p, linear fall on [v₋, v₊] | v₋, v₊, p |
-| Table | straight lines through your (vₙ, weight) points | table, weight = flux or phase density |
+| Table | straight lines through your (vₙ, weight) points | table |
+| Legacy (older files) | beam speed + isotropic Gaussian of √(kT/m) | energy, temperature |
+
+For the Gaussian, waterbag, trapezoid and table, **Shape describes** chooses whether your shape is the
+current flux P(vₙ) or the phase-space density f(vₙ) (P = vₙ f). The Maxwellian is the Gaussian with
+μ = 0, σ = √(kT/m) and shape = phase density. The cut at vₙ = 0 exists because an emitter can only
+send particles into the domain; raise v_min to remove slow particles as well.
 
 The figure shows P(vₙ) in km/s with its mean, the speed range and the corresponding energy range.
 Enter a **barrier** depth b [V] to see the transmitted fraction T(b) of the current (electrons with

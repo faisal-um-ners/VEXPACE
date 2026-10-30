@@ -22,13 +22,20 @@ Two different objects are described here, and they must not be mixed:
   cold                    delta(v_n - v_b),  v_b = speed of the beam energy          energy [eV]
   maxwellian              (m/kT) v exp(-m v^2 / 2kT); with an energy offset E the    temperature [eV],
                           normal energy is raised by eE (v -> sqrt(v^2 + 2eE/m))      energy [eV]
-  gaussian                exp(-(v-mu)^2 / 2 sigma^2) / norm, truncated at v = 0      mean [m/s] (blank:
-                                                                                     beam speed), sigma
-  waterbag                1/(v+ - v-) on v- <= v <= v+   (uniform current flux)      v-, v+ [m/s]
-  waterbag_phase          2v/(v+^2 - v-^2) on [v-, v+]   (uniform phase density)     v-, v+ [m/s]
-  trapezoid               flat on the central plateau of [v-, v+], linear edges      v-, v+, plateau
-  arbitrary               table of (v [m/s], weight); weight = P (flux) or f         table, meaning
+  gaussian                G = exp(-(v-mu)^2 / 2 sigma^2) on [v_min, v_max]           mean [m/s] (blank:
+                          (cut-offs; v_min >= 0, v_max blank = none).  P = G         beam speed), sigma,
+                          ('flux') or P = v G ('phase_density' - a drifting           cut-offs, weighting
+                          Maxwellian flux, WarpX 'gaussianflux')
+  waterbag                uniform on [v-, v+]: P = 1/(v+ - v-) ('flux') or            v-, v+ [m/s],
+                          P = 2v/(v+^2 - v-^2) ('phase_density', Ignatov 2025)       weighting
+  waterbag_phase          = waterbag with 'phase_density' (older files)
+  trapezoid               flat on the central plateau of [v-, v+], linear edges      v-, v+, plateau,
+                          (shape of P or of f, as for the waterbag)                  weighting
+  arbitrary               table of (v [m/s], weight); weight = P (flux) or f         table, weighting
                           (phase density, sampled as v f)
+
+  The weighting ('velocity_weight', or 'velocity_table_kind' in older files) says whether the shape
+  is the current flux P itself or the phase density f (then P = v f).
   ======================  =========================================================  ==================
 
   Transmission over a potential barrier phi_min = -b V (needs v_n > sqrt(2 e b V / m)):
@@ -240,6 +247,55 @@ def _bounds(spec, ev):
     return lo, hi
 
 
+def weighting(spec):
+    """What the shaped emission laws describe: 'flux' (the current-flux P(v_n) itself) or
+    'phase_density' (the one-directional phase density f(v_n); then P = v_n f)."""
+    w = str(spec.get("velocity_weight", "") or spec.get("velocity_table_kind", "flux"))
+    if spec.get("velocity_distribution") == "waterbag_phase":
+        w = "phase_density"
+    if w not in TABLE_MEANINGS:
+        raise ValueError(f"Unknown weighting '{w}' (use flux or phase_density).")
+    return w
+
+
+def gaussian_params(spec, ev, m):
+    """(mu, sigma, a, b) of the general Gaussian: mean (blank = beam speed), spread, and the
+    cut-offs a = max(0, v_cut_min), b = v_cut_max (blank = no upper cut)."""
+    sig = _num(spec, ev, "velocity_spread", "1e5", "Speed spread sigma", 0.0)
+    mu = (_num(spec, ev, "velocity_mean", "0", "Mean normal speed")
+          if str(spec.get("velocity_mean", "")).strip() else beam_speed(spec, ev, m))
+    a = max(0.0, _num(spec, ev, "velocity_cut_min", "0", "Lower cut-off v_min", 0.0))
+    b = (_num(spec, ev, "velocity_cut_max", "0", "Upper cut-off v_max", 0.0)
+         if str(spec.get("velocity_cut_max", "")).strip() else math.inf)
+    if b <= a:
+        raise ValueError("The upper cut-off must exceed the lower cut-off.")
+    return mu, sig, a, b
+
+
+def _gaussian_curve(mu, sig, a, b, weight, npts=2001):
+    """Dense (v, P) of the cut Gaussian on [a, b] with the chosen weighting (area 1)."""
+    lo = max(a, mu - 7 * sig)                       # tails beyond 7 sigma carry < 1e-11
+    hi = min(b, max(mu, a) + 7 * sig)
+    if hi <= lo:
+        raise ValueError("The Gaussian has no weight between the cut-offs; move the mean or the cut-offs.")
+    v = np.linspace(lo, hi, npts)
+    p = np.exp(-0.5 * ((v - mu) / sig) ** 2)
+    if weight == "phase_density":
+        p = p * v
+    area = np.trapezoid(p, v)
+    if not area > 0:
+        raise ValueError("The Gaussian has no weight between the cut-offs; move the mean or the cut-offs.")
+    return v, p / area
+
+
+def _weighted(pts, weight, npts=801):
+    """Flux table from a shape table: unchanged for 'flux', P = v f (resampled) for 'phase_density'."""
+    if weight != "phase_density":
+        return pts
+    v = np.unique(np.concatenate([np.linspace(pts[0, 0], pts[-1, 0], npts), pts[:, 0]]))
+    return np.column_stack([v, v * np.interp(v, pts[:, 0], pts[:, 1])])
+
+
 def normal_points(spec, ev, m=C.me):
     """Piecewise-linear current-flux table P(v_n) for the table-based laws, or None for the
     analytic ones (cold, maxwellian, gaussian, default)."""
@@ -250,23 +306,20 @@ def normal_points(spec, ev, m=C.me):
         _num(spec, ev, "temperature", "0", "Temperature", 0.0)
         return None
     if kind == "gaussian":
-        _num(spec, ev, "velocity_spread", "1e5", "Speed spread sigma", 0.0)
-        if str(spec.get("velocity_mean", "")).strip():
-            _num(spec, ev, "velocity_mean", "0", "Mean normal speed")
-        return None
-    if kind == "waterbag":
+        mu, sig, a, b = gaussian_params(spec, ev, m)
+        if sig == 0:
+            return None
+        return np.column_stack(_gaussian_curve(mu, sig, a, b, weighting(spec)))
+    if kind in ("waterbag", "waterbag_phase"):
         lo, hi = _bounds(spec, ev)
-        return np.array([[lo, 1.0], [hi, 1.0]])
-    if kind == "waterbag_phase":
-        lo, hi = _bounds(spec, ev)
-        return np.array([[lo, lo], [hi, hi]]) if lo > 0 else np.array([[0.0, 0.0], [hi, hi]])
+        return _weighted(np.array([[lo, 1.0], [hi, 1.0]]), weighting(spec))
     if kind == "trapezoid":
         lo, hi = _bounds(spec, ev)
-        return _trapezoid_points(lo, hi, ev.num(spec.get("velocity_plateau", "0.5")))
+        return _weighted(_trapezoid_points(lo, hi, ev.num(spec.get("velocity_plateau", "0.5"))), weighting(spec))
     if kind == "arbitrary":
         pts = read_points(spec.get("velocity_pdf_0", DEFAULT_SPEED_PDF), ev)
         pts = _clip_positive(pts)
-        if spec.get("velocity_table_kind", "flux") == "phase_density":
+        if weighting(spec) == "phase_density":
             pts = _flux_from_density(pts)
         if not np.any(pts[:, 1] > 0):
             raise ValueError("The normal-speed table has zero weight.")
@@ -313,16 +366,16 @@ def sample_normal(spec, ev, rng, n, m):
         return np.sqrt(v2)
     if kind == "gaussian":
         from scipy.special import ndtr, ndtri
-        sig = _num(spec, ev, "velocity_spread", "1e5", "Speed spread sigma", 0.0)
-        mu = (_num(spec, ev, "velocity_mean", "0", "Mean normal speed")
-              if str(spec.get("velocity_mean", "")).strip() else beam_speed(spec, ev, m))
-        if sig == 0:                       # cold: all at the mean speed (at rest if the mean is <= 0)
-            return np.full(n, max(mu, 0.0))
-        p0 = ndtr(-mu / sig)                                       # probability mass below v = 0
-        if p0 > 1 - 1e-12:
-            raise ValueError("The Gaussian has (almost) no weight at positive speeds; raise the mean.")
-        return np.maximum(mu + sig * ndtri(p0 + rng.random(n) * (1 - p0)), 0.0)
-    if kind == "waterbag_phase":
+        mu, sig, a, b = gaussian_params(spec, ev, m)
+        if sig == 0:                       # cold: all at the mean speed, kept inside the cut-offs
+            return np.full(n, min(max(mu, a), b))
+        if weighting(spec) == "flux":      # exact inverse CDF of the Gaussian cut to [a, b]
+            pa, pb = ndtr((a - mu) / sig), ndtr((b - mu) / sig)
+            if pb - pa < 1e-12:
+                raise ValueError("The Gaussian has (almost) no weight between the cut-offs; move the mean.")
+            return np.clip(mu + sig * ndtri(pa + rng.random(n) * (pb - pa)), a, b)
+        return table_quantile(np.column_stack(_gaussian_curve(mu, sig, a, b, "phase_density")), rng.random(n))
+    if kind in ("waterbag", "waterbag_phase") and weighting(spec) == "phase_density":
         lo, hi = _bounds(spec, ev)
         return np.sqrt(lo ** 2 + rng.random(n) * (hi ** 2 - lo ** 2))
     pts = normal_points(spec, ev, m)
@@ -377,16 +430,11 @@ def normal_pdf_curve(spec, ev, m, npts=601):
             return v, p / np.trapezoid(p, v)
         return w, p
     if kind == "gaussian":
-        from scipy.special import ndtr
-        sig = _num(spec, ev, "velocity_spread", "1e5", "Speed spread sigma", 0.0)
-        mu = (_num(spec, ev, "velocity_mean", "0", "Mean normal speed")
-              if str(spec.get("velocity_mean", "")).strip() else beam_speed(spec, ev, m))
+        mu, sig, a, b = gaussian_params(spec, ev, m)
         if sig == 0:
-            return np.array([max(mu, 0.0)]), None
-        v = np.linspace(max(0.0, mu - 5 * sig), mu + 5 * sig, npts)
-        p = np.exp(-0.5 * ((v - mu) / sig) ** 2) / (math.sqrt(2 * math.pi) * sig * ndtr(mu / sig))
-        return v, p
-    if kind == "waterbag_phase":
+            return np.array([min(max(mu, a), b)]), None
+        return _gaussian_curve(mu, sig, a, b, weighting(spec), max(npts, 1001))
+    if kind in ("waterbag", "waterbag_phase") and weighting(spec) == "phase_density":
         lo, hi = _bounds(spec, ev)
         v = np.linspace(lo, hi, npts)
         return v, 2 * v / (hi ** 2 - lo ** 2)

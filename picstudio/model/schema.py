@@ -248,7 +248,8 @@ SPECIES = [
 VELOCITY_FIELD_NAMES = {"velocity_distribution", "velocity_width", "velocity_plateau",
                         "velocity_pdf_0", "velocity_pdf_1", "velocity_pdf_2", "velocity_mean",
                         "velocity_spread", "velocity_min", "velocity_max", "velocity_table_kind",
-                        "transverse_distribution", "transverse_width", "velocity_version"}
+                        "transverse_distribution", "transverse_width", "velocity_version",
+                        "velocity_cut_min", "velocity_cut_max", "velocity_weight"}
 
 
 def velocity_fields(beam=False):
@@ -278,15 +279,27 @@ def velocity_fields(beam=False):
                    "particles always leave the surface).  default: beam energy plus an isotropic "
                    "thermal spread (older models).  cold: all at the beam-energy speed.  maxwellian: "
                    "P ~ v exp(-m v^2/2kT) at the emission temperature, raised by the beam energy as "
-                   "an acceleration.  gaussian: truncated Gaussian of mean and sigma.  waterbag: "
-                   "uniform current flux between v- and v+.  waterbag_phase: uniform phase density "
-                   "(P ~ v) between v- and v+.  trapezoid: flat plateau with linear edges.  "
+                   "an acceleration.  gaussian: Gaussian of mean and sigma between the cut-offs.  waterbag: "
+                   "uniform between v- and v+.  waterbag_phase: older name of a waterbag of uniform "
+                   "phase density.  trapezoid: flat plateau with linear edges.  "
                    "arbitrary: your table of speed and weight."),
         Field("velocity_mean", "expr", "", "Mean normal speed", "m/s",
               show_if={**visible, "velocity_distribution": ["gaussian"]},
               help="Blank: the speed of the beam energy.  speed_eV(E, me) converts an energy in eV."),
         Field("velocity_spread", "expr", "1e5", "Normal speed sigma", "m/s",
               show_if={**visible, "velocity_distribution": ["gaussian"]}),
+        Field("velocity_cut_min", "expr", "0", "Lower cut-off v_min", "m/s",
+              show_if={**visible, "velocity_distribution": ["gaussian"]},
+              help="No particle is emitted slower than v_min (>= 0; 0 = the surface)."),
+        Field("velocity_cut_max", "expr", "", "Upper cut-off v_max", "m/s",
+              show_if={**visible, "velocity_distribution": ["gaussian"]},
+              help="Blank: no upper cut-off."),
+        Field("velocity_weight", "choice", "flux", "Shape describes", choices=("flux", "phase_density"),
+              show_if={**visible, "velocity_distribution": ["gaussian", "waterbag", "trapezoid", "arbitrary"]},
+              help="flux: the shape is the current-flux distribution P(v_n) itself.  phase_density: the "
+                   "shape is the phase-space density f(v_n) at the surface and P = v_n f(v_n) (a Gaussian "
+                   "then is a drifting-Maxwellian flux, as WarpX 'gaussianflux'; a waterbag the constant-f "
+                   "waterbag of Ignatov 2025)."),
         Field("velocity_min", "expr", "0", "Lowest normal speed v-", "m/s",
               show_if={**visible, "velocity_distribution": bounded}),
         Field("velocity_max", "expr", "2e5", "Highest normal speed v+", "m/s",

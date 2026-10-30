@@ -198,17 +198,17 @@ LOADER_LABELS = {
     "arbitrary": "Custom points / CSV",
 }
 EMISSION_LABELS = {
-    "default": "Existing law (beam energy + thermal spread)",
     "cold": "Cold beam (single speed)",
-    "maxwellian": "Maxwellian - thermal current flux",
-    "gaussian": "Gaussian - truncated at v = 0",
-    "waterbag": "Waterbag - uniform current flux",
-    "waterbag_phase": "Waterbag - uniform phase density",
+    "maxwellian": "Maxwellian - thermal emission flux",
+    "gaussian": "Gaussian - drifting, with cut-offs",
+    "waterbag": "Waterbag - uniform between v₋ and v₊",
     "trapezoid": "Trapezoid - plateau with linear edges",
     "arbitrary": "Custom speed table / CSV",
+    "default": "Legacy (older files) - beam energy + isotropic thermal spread",
 }
+EMISSION_SUMMARY = {**EMISSION_LABELS, "waterbag_phase": "Waterbag - uniform phase density"}
 # Kept for older imports: labels shown in the form summary
-VELOCITY_LABELS = {**LOADER_LABELS, **EMISSION_LABELS}
+VELOCITY_LABELS = {**LOADER_LABELS, **EMISSION_SUMMARY}
 TRANSVERSE_LABELS = {
     "thermal": "Thermal - Gaussian, σ = √(kT/m)",
     "cold": "Cold - no transverse velocity",
@@ -227,15 +227,18 @@ EMISSION_HELP = {
                   "(the flux-weighted half-Maxwellian).  Mean vₙ = √(πkT/2m).  A beam energy E adds eE to the "
                   "normal energy (acceleration): vₙ → √(vₙ² + 2eE/m).  Transmission over a barrier of depth bV: "
                   "T = exp(−ebV/kT).",
-    "gaussian": "P(vₙ) = exp(−(vₙ − μ)²/2σ²) / [√(2π) σ Φ(μ/σ)],  vₙ ≥ 0  (truncated Gaussian of the current "
-                "flux; Φ = standard normal CDF).  μ blank = speed of the beam energy.  "
-                "T = [1 − Φ((v_c − μ)/σ)] / Φ(μ/σ),  v_c = √(2ebV/m).",
-    "waterbag": "Uniform current flux:  P(vₙ) = 1/(v₊ − v₋)  for v₋ ≤ vₙ ≤ v₊.  "
-                "T = clip((v₊ − v_c)/(v₊ − v₋), 0, 1).",
+    "gaussian": "G(vₙ) = exp(−(vₙ − μ)²/2σ²) between the cut-offs v_min ≤ vₙ ≤ v_max.  Shape = flux: "
+                "P = G (truncated Gaussian of the current).  Shape = phase density: P ∝ vₙ G (a drifting "
+                "Maxwellian flux, as WarpX 'gaussianflux'; μ = 0, σ = √(kT/m) is the thermal Maxwellian).  "
+                "Particles can only leave the surface, so v_min ≥ 0; set v_min > 0 to emit nothing slower.  "
+                "If μ ≫ σ the cut at 0 has no effect.  μ blank = speed of the beam energy.",
+    "waterbag": "Uniform shape between v₋ and v₊.  Shape = flux: P(vₙ) = 1/(v₊ − v₋).  Shape = phase density "
+                "(constant Vlasov waterbag, e.g. Ignatov 2025): f = const, P(vₙ) = 2vₙ/(v₊² − v₋²).",
     "waterbag_phase": "Uniform phase-space density (constant Vlasov waterbag, e.g. Ignatov 2025):  "
                       "f = const, so P(vₙ) = 2vₙ/(v₊² − v₋²)  for v₋ ≤ vₙ ≤ v₊.",
-    "trapezoid": "P(vₙ) rises linearly from 0 at v₋ to a flat plateau and falls linearly to 0 at v₊; the "
-                 "plateau is the central fraction p of [v₋, v₊] (p = 0 triangle, p = 1 uniform waterbag).",
+    "trapezoid": "The shape rises linearly from 0 at v₋ to a flat plateau and falls linearly to 0 at v₊; the "
+                 "plateau is the central fraction p of [v₋, v₊] (p = 0 triangle, p = 1 waterbag).  The shape is "
+                 "P(vₙ) (flux) or f(vₙ) (phase density, P = vₙ f).",
     "arbitrary": "Enter increasing speeds vₙ ≥ 0 [m/s] and weights.  Straight lines join the points; VEXPACE "
                  "normalises the area.  The weight is either the current flux P(vₙ) or the phase density "
                  "f(vₙ) (then P = vₙ f).  Expressions such as speed_eV(10, me) are allowed.",
@@ -272,7 +275,10 @@ class VelocityDialog(DesignerDialog):
         labels = EMISSION_LABELS if beam else LOADER_LABELS
         for key, label in labels.items():
             self.kind.addItem(label, key)
-        self.kind.setCurrentIndex(max(0, self.kind.findData(spec.get("velocity_distribution", "default"))))
+        k0 = spec.get("velocity_distribution", "default")
+        if beam and k0 == "waterbag_phase":
+            k0 = "waterbag"                      # = waterbag whose shape is the phase density
+        self.kind.setCurrentIndex(max(0, self.kind.findData(k0)))
         if beam:
             self._build_emission(spec)
         else:
@@ -284,22 +290,35 @@ class VelocityDialog(DesignerDialog):
 
     # -- emission -----------------------------------------------------------------------------
     def _build_emission(self, spec):
-        self.form.addRow("<b>Normal velocity</b> (leaves the surface, vₙ ≥ 0)", QLabel(""))
-        self.form.addRow("Current-flux law P(vₙ)", self.kind)
+        nrm = str(spec.get("normal", "auto"))
+        along = "along " + nrm if nrm not in ("", "auto") else "into the domain"
+        rz = self.geometry == "2D-RZ"
+        if nrm.endswith("z"):
+            trans = "r and θ" if rz else ("y and x" if self.geometry != "1D-Z" else "x, y (not used in 1D)")
+        else:
+            trans = "z and θ" if rz else "z and x"
+        self.form.addRow(f"<b>Normal speed vₙ</b> ({along}, the Emission direction; vₙ ≥ 0)", QLabel(""))
+        self.form.addRow("Normal-speed law", self.kind)
         self.energy = self.entry("Beam energy E [eV]", spec.get("energy", "0"))
         self.temperature = self.entry("Temperature kT [eV]", spec.get("temperature", "0"))
         self.mean = self.entry("Mean speed μ [m/s] (blank: beam speed)", spec.get("velocity_mean", ""))
         self.spread = self.entry("Speed spread σ [m/s]", spec.get("velocity_spread", "1e5"))
         self.vmin = self.entry("Lowest speed v₋ [m/s]", spec.get("velocity_min", "0"))
         self.vmax = self.entry("Highest speed v₊ [m/s]", spec.get("velocity_max", "2e5"))
+        self.cut_min = self.entry("Lower cut-off v_min [m/s] (≥ 0)", spec.get("velocity_cut_min", "0"))
+        self.cut_max = self.entry("Upper cut-off v_max [m/s] (blank: none)", spec.get("velocity_cut_max", ""))
         self.plateau = self.entry("Plateau fraction p [0–1]", spec.get("velocity_plateau", "0.5"))
         self.table_kind = QComboBox()
-        self.table_kind.addItem("Weight is the current flux P(vₙ)", "flux")
-        self.table_kind.addItem("Weight is the phase density f(vₙ)", "phase_density")
-        self.table_kind.setCurrentIndex(max(0, self.table_kind.findData(spec.get("velocity_table_kind", "flux"))))
-        self.form.addRow("Table meaning", self.table_kind)
+        self.table_kind.addItem("the current flux P(vₙ)", "flux")
+        self.table_kind.addItem("the phase-space density f(vₙ)  (P = vₙ f)", "phase_density")
+        try:
+            w0 = D.weighting(spec)
+        except ValueError:
+            w0 = "flux"
+        self.table_kind.setCurrentIndex(max(0, self.table_kind.findData(w0)))
+        self.form.addRow("Shape describes", self.table_kind)
         self.table_kind.currentIndexChanged.connect(self.refresh)
-        self.form.addRow("<b>Transverse velocity</b> (along the surface, out of plane)", QLabel(""))
+        self.form.addRow(f"<b>Transverse velocity</b> (perpendicular to vₙ: {trans})", QLabel(""))
         self.transverse = QComboBox()
         for key, label in TRANSVERSE_LABELS.items():
             self.transverse.addItem(label, key)
@@ -325,7 +344,9 @@ class VelocityDialog(DesignerDialog):
         self.controls.addWidget(self.copy_points)
         msg = ("All speeds are real velocities v in m/s (SI); VEXPACE converts the sampled velocity to "
                "u = γv.  P(vₙ) is the distribution of the particles crossing the surface per unit time "
-               "(the injected current), as needed for Poisson/Child-Langmuir theory: J_tr = J T(b).")
+               "(the injected current), as needed for Poisson/Child-Langmuir theory: J_tr = J T(b).  "
+               "The current density J(t) is set separately (Current density field or Current pulse…): "
+               "P(vₙ) is normalised, so every law emits the same current J·A.")
         if self.geometry == "1D-Z":
             msg += "  In 1D the along-surface component is not used."
         note = QLabel(msg)
@@ -375,6 +396,9 @@ class VelocityDialog(DesignerDialog):
             d.update(energy=self.entry_text(self.energy).strip() or "0", velocity_mean=self.entry_text(self.mean).strip(),
                      velocity_spread=self.entry_text(self.spread), velocity_min=self.entry_text(self.vmin),
                      velocity_max=self.entry_text(self.vmax), velocity_table_kind=self.table_kind.currentData(),
+                     velocity_weight=self.table_kind.currentData(),
+                     velocity_cut_min=self.entry_text(self.cut_min).strip() or "0",
+                     velocity_cut_max=self.entry_text(self.cut_max).strip(),
                      transverse_distribution=self.transverse.currentData(),
                      transverse_width=[self.entry_text(w) for w in self.tw], velocity_version="2")
         else:
@@ -399,10 +423,12 @@ class VelocityDialog(DesignerDialog):
         self.visible(self.temperature, kind in ("default", "maxwellian") or (flux and tkind == "thermal"))
         self.visible(self.mean, kind == "gaussian")
         self.visible(self.spread, kind == "gaussian")
+        self.visible(self.cut_min, kind == "gaussian")
+        self.visible(self.cut_max, kind == "gaussian")
         for w in (self.vmin, self.vmax):
             self.visible(w, kind in ("waterbag", "waterbag_phase", "trapezoid"))
         self.visible(self.plateau, kind == "trapezoid" or (flux and tkind == "trapezoid"))
-        self.visible(self.table_kind, kind == "arbitrary")
+        self.visible(self.table_kind, kind in ("gaussian", "waterbag", "waterbag_phase", "trapezoid", "arbitrary"))
         self.visible(self.transverse, flux)
         for w in self.tw:
             self.visible(w, flux and tkind in ("gaussian", "waterbag", "trapezoid"))

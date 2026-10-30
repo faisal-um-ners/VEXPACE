@@ -76,6 +76,11 @@ def _migrate_emitter_velocities(m):
     species = {s.get("name"): s for s in (m.get("species") or [])}
     out = []
     for it in m.get("emitters", []) or []:
+        if "velocity_weight" not in it:          # files before the universal weighting field
+            it = dict(it)
+            kind = it.get("velocity_distribution", "default")
+            it["velocity_weight"] = ("phase_density" if kind == "waterbag_phase" else
+                                     it.get("velocity_table_kind", "flux") if kind == "arbitrary" else "flux")
         if "velocity_version" in it:
             out.append(it)
             continue

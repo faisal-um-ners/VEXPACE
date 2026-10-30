@@ -219,10 +219,13 @@ class FieldForm(QWidget):
             if (self.source_kind == "loader" and f.name == "temperature"
                     and self.values.get("velocity_distribution", "default") in ("cold", "waterbag", "trapezoid", "arbitrary")):
                 vis = False
+            if (self.source_kind == "emitter" and f.name == "temperature" and self.values.get("model") == "beam"
+                    and self.values.get("velocity_distribution", "default") != "default"):
+                vis = False          # the temperature of a beam law is edited in Velocity distribution…
             self.widgets[f.name].setVisible(vis)
             self.rows[f.name].setVisible(vis)
         if self.source_helpers is not None:
-            from .source_designer import EMISSION_LABELS, LOADER_LABELS
+            from .source_designer import EMISSION_SUMMARY as EMISSION_LABELS, LOADER_LABELS
             beam = self.source_kind == "loader" or self.values.get("model") == "beam"
             pulse = self.source_kind == "emitter" and self.values.get("model") in ("beam", "photo")
             self.source_helpers.setVisible(True)

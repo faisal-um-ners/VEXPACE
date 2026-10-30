@@ -93,11 +93,22 @@ Speeds are real velocities in m/s; VEXPACE samples v and stores u = γv.
 |---|---|---|
 | Cold | δ(vₙ − v_b), v_b = c√(1 − 1/γ²), γ = 1 + eE/mc² | beam energy E [eV] |
 | Maxwellian (thermal flux) | (m/kT) vₙ exp(−m vₙ²/2kT); mean √(πkT/2m). With E > 0: vₙ → √(vₙ² + 2eE/m) | kT [eV], energy offset E [eV] |
-| Truncated Gaussian | exp(−(vₙ − μ)²/2σ²) / [√(2π) σ Φ(μ/σ)] | mean μ [m/s] (blank = v_b), σ [m/s] |
-| Waterbag (uniform flux) | 1/(v₊ − v₋) on [v₋, v₊] | v₋, v₊ [m/s] |
-| Waterbag (uniform phase density) | 2vₙ/(v₊² − v₋²) on [v₋, v₊] (constant f, e.g. Ignatov 2025) | v₋, v₊ [m/s] |
-| Trapezoid | linear rise, plateau (fraction p of [v₋, v₊]), linear fall | v₋, v₊, p |
+| Gaussian (general) | G = exp(−(vₙ − μ)²/2σ²) on v_min ≤ vₙ ≤ v_max; P = G (shape = flux) or P ∝ vₙ G (shape = phase density) | μ [m/s] (blank = v_b), σ, cut-offs v_min ≥ 0, v_max (blank = none), shape |
+| Waterbag | uniform on [v₋, v₊]: P = 1/(v₊ − v₋) (flux) or P = 2vₙ/(v₊² − v₋²) (phase density, constant f, e.g. Ignatov 2025) | v₋, v₊ [m/s], shape |
+| Trapezoid | linear rise, plateau (fraction p of [v₋, v₊]), linear fall; shape of P or of f | v₋, v₊, p, shape |
 | Table | straight lines through (vₙ [m/s], weight); weight = flux P or phase density f | table |
+
+**Shape describes: flux or phase density.** For the Gaussian, waterbag, trapezoid and table laws you
+choose whether the shape you enter is the current flux P(vₙ) itself or the phase-space density f(vₙ)
+at the surface (then P = vₙ f, because faster particles cross the surface more often). The Maxwellian
+is the special case of a Gaussian with μ = 0, σ = √(kT/m) and shape = phase density; a Gaussian with
+μ ≠ 0 and shape = phase density is a drifting-Maxwellian flux (WarpX `gaussianflux`).
+
+**Why the cut at vₙ = 0?** An emitter sits on a wall, so only particles moving into the domain can be
+emitted; a negative normal speed would put the particle straight back into the wall. Codes therefore
+emit only the forward part (WarpX `gaussianflux`, thermionic and beam emitters in XOOPIC/VSim). When
+μ ≫ σ the cut changes nothing; when μ ≲ 2σ it matters, and the injected current J is carried by the
+forward part only. Use v_min > 0 to also remove slow particles, or v_max to remove a fast tail.
 
 Expressions are allowed, e.g. `speed_eV(1000)` (speed of a 1 keV electron), `speed_eV(1000)-2e5`, or
 `speed_eV(E, mp)` for another mass; `energy_eV(v)` converts back.
@@ -108,8 +119,8 @@ fraction of the emitted current, for the chosen law, e.g.
 
 ```text
 Maxwellian:          T = exp(-e b / kT)
-truncated Gaussian:  T = [1 - Phi((v_c - mu)/sigma)] / Phi(mu/sigma),   v_c = sqrt(2 e b / m)
-uniform flux:        T = clip((v+ - v_c)/(v+ - v-), 0, 1)
+Gaussian (flux, cut at 0):  T = [1 - Phi((v_c - mu)/sigma)] / Phi(mu/sigma),   v_c = sqrt(2 e b / m)
+uniform flux:               T = clip((v+ - v_c)/(v+ - v-), 0, 1)
 ```
 
 **Transverse components** (beam emitters): thermal (σ = √(kT/m)), cold, Gaussian, waterbag or
@@ -118,9 +129,9 @@ trapezoid of a given width, or a table. They are independent of the normal law.
 **Older models.** The previous "offset about the beam speed" inputs could launch particles into the
 wall (a waterbag ±w about zero energy sends half the electrons backwards). When such a file is opened
 it is converted once: waterbag/trapezoid → speeds max(0, v_b − w) … v_b + w; the old "maxwellian"
-(a Gaussian about v_b) → truncated Gaussian with σ = √(kT/m) and thermal transverse components;
-tables → absolute speeds. The **Keep existing energy / temperature law** choice keeps the original
-beam rule unchanged.
+(a Gaussian about v_b) → Gaussian (flux, cut at 0) with σ = √(kT/m) and thermal transverse components;
+tables → absolute speeds. The **Legacy (older files)** choice keeps the original beam rule unchanged; new models should use
+one of the laws above.
 
 ### Other sources and loaders
 
@@ -142,3 +153,6 @@ The loader temperature is k_B T **in eV**, not kelvin.
 5. For distributions, plot injected-particle velocity histograms and compare them with the intended P(vₙ) (remember that a histogram of particles in a slab near the emitter shows the density, ∝ P/vₙ). Do not infer the injected PDF from a downstream beam histogram without accounting for acceleration and filtering.
 
 See also the full [VEXPACE user guide](USER_GUIDE.md), [numerical methods](THEORY.md), and [short-pulse verification notes](../examples/SHORT_PULSE_VERIFICATION.json).
+
+**Current density.** The velocity law only shapes the speeds: P(vₙ) is normalised, so the emitted
+current is always J(t)·A, with J set in **Current density J(t)** or with **Current pulse…**.

@@ -7,12 +7,12 @@ it used earlier settings. Plots are replaced when the next run starts. A cancell
 
 | Example file | Coordinates | Pulse shape | Emitted normal-speed law | Mesh |
 |---|---|---|---|---|
-| `source_designer_beam_1d.pic.json` | 1D z | Gaussian, FWHM 0.1 ns, ±3σ | truncated Gaussian, μ = v_b, σ = 200 km/s | 120 uniform cells |
+| `source_designer_beam_1d.pic.json` | 1D z | Gaussian, FWHM 0.1 ns, ±3σ | Gaussian (flux), μ = v_b, σ = 200 km/s | 120 uniform cells |
 | `source_designer_square_1d.pic.json` | 1D z | Square, 0.3 ns | uniform-flux waterbag v_b ± 200 km/s | 120 uniform cells |
 | `source_designer_trapezoid_1d.pic.json` | 1D z | Trapezoid 0.06/0.18/0.06 ns | trapezoid on v_b ± 200 km/s, plateau 0.5 | 120 uniform cells |
 | `source_designer_pulse_rz.pic.json` | Axisymmetric z,r | Gaussian, FWHM 0.1 ns, ±3σ | Maxwellian flux, kT = 0.2 eV, thermal transverse | Local P1 triangles |
 | `source_designer_pulse_zy.pic.json` | Cartesian z,y | Trapezoid 0.06/0.18/0.06 ns | waterbag v_b ± 200 km/s, transverse waterbag 200 km/s | Local P1 triangles |
-| `Gaussian_VD_Barrier.pic.json` | 1D z | constant 1e5 A/m² | half-Gaussian flux (μ = 0, σ = 200 km/s) | 512 uniform cells |
+| `Gaussian_VD_Barrier.pic.json` | 1D z | constant 1e5 A/m² | Gaussian cut at 0 (as you set it) | 512 uniform cells |
 
 v_b is the speed of the 1 keV beam energy (`speed_eV(beam_energy)`). These are illustrative beam
 transport problems, not published benchmark cases. Each has a labelled **vacuum** geometry object over

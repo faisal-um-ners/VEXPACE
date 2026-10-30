@@ -300,3 +300,28 @@ def test_source_help_wraps_after_model_switch_and_panel_resize():
         window.close()
         app.setStyleSheet(previous_style)
         app.processEvents()
+
+
+def test_general_gaussian_cutoffs_and_weighting():
+    """Gaussian with cut-offs and flux / phase-density weighting; Maxwellian is the special case
+    mu = 0, sigma = sqrt(kT/m) with phase-density weighting."""
+    from scipy.stats import truncnorm
+    from picstudio.sources import distributions as D
+    ev, rng = Evaluator(), np.random.default_rng(3)
+    def mean(spec):
+        return D.sample_normal(spec, ev, rng, 200000, C.me).mean()
+    cut = dict(velocity_distribution="gaussian", velocity_mean="3e5", velocity_spread="2e5",
+               velocity_cut_min="3e5", velocity_cut_max="5e5")
+    v = D.sample_normal(cut, ev, rng, 20000, C.me)
+    assert v.min() >= 3e5 and v.max() <= 5e5
+    assert mean(cut) == pytest.approx(truncnorm.mean(0, 1, loc=3e5, scale=2e5), rel=3e-3)
+    s = float(np.sqrt(0.2*C.e/C.me))
+    phase = dict(velocity_distribution="gaussian", velocity_mean="0", velocity_spread=str(s),
+                 velocity_weight="phase_density")
+    assert mean(phase) == pytest.approx(mean(dict(velocity_distribution="maxwellian", temperature="0.2")), rel=1e-2)
+    wb = dict(velocity_distribution="waterbag", velocity_min="1e5", velocity_max="4e5", velocity_weight="phase_density")
+    assert mean(wb) == pytest.approx(2/3*(4e5**3-1e5**3)/(4e5**2-1e5**2), rel=3e-3)
+    old = dict(velocity_distribution="waterbag_phase", velocity_min="1e5", velocity_max="4e5")
+    assert D.weighting(old) == "phase_density"
+    with pytest.raises(ValueError):
+        D.validate_distribution(dict(cut, velocity_cut_max="2e5"), ev, emitter=True)

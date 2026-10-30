@@ -504,7 +504,7 @@ class LivePanel(QWidget):
                 self._insets.append(ins)
                 fpk = f[1:][np.argmax(F[1:])]
                 fs, fu = _freq_unit(fpk)
-                ins.semilogy(f[1:] / fs, F[1:] + 1e-300, lw=0.9, color="#6250d6")
+                ins.plot(f[1:] / fs, F[1:], lw=0.9, color="#6250d6")          # linear amplitude scale
                 ins.axvline(fpk / fs, color="#e34948", lw=0.8, ls="--")
                 ins.set_title(f"Peak: {fpk / fs:.2f} {fu}", fontsize=7)
                 ins.tick_params(labelsize=6)
