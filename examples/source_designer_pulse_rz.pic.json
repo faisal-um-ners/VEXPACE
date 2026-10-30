@@ -70,7 +70,7 @@
   "domain": {
     "z_min": "0",
     "z_max": "d",
-    "nz": "256",
+    "nz": "1024",
     "y_min": "0",
     "y_max": "Rout",
     "ny": "48"
@@ -79,7 +79,7 @@
     "output_dir": "output_source_designer_pulse_rz",
     "history_every": "5",
     "field_every": "500",
-    "particle_every": "500",
+    "particle_every": "50",
     "max_dump_particles": "10000",
     "live_every": "50"
   },
@@ -108,7 +108,7 @@
       "y1": "1e-3",
       "points": "0,0; 1e-2,0; 1e-2,2e-3; 0,2e-4",
       "buffer": "0",
-      "size": "R/10",
+      "size": "R/30",
       "growth": "1.1"
     }
   ],
@@ -164,7 +164,7 @@
       "z1": "0",
       "y1": "R",
       "normal": "+z",
-      "current_density": "(Jamp)*(1)*where(((t-(0))>=0)&((t-(0))<tau_p),1,0)",
+      "current_density": "(5.89e7)*(1)*where(((t-(0.0))>=0)&((t-(0.0))<tau_p),1,0)",
       "energy": "0",
       "temperature": "0",
       "work_function": "4.5",
@@ -174,9 +174,9 @@
       "schottky": true,
       "relax": "1.0",
       "profile": "1",
-      "particles_per_cell": "16",
-      "t_start": "0",
-      "t_stop": "(0)+tau_p",
+      "particles_per_cell": "64",
+      "t_start": "0.0",
+      "t_stop": "(0.0)+tau_p",
       "velocity_distribution": "cold",
       "velocity_mean": "",
       "velocity_spread": "1e5",
@@ -198,14 +198,14 @@
       "velocity_version": "2",
       "pulse_builder": {
         "shape": "square",
-        "start": "0",
-        "duration": "tau_p",
+        "start": "0.0",
         "normalization": "peak",
-        "amount": "Jamp",
-        "table_units": "seconds",
+        "amount": "5.89e7",
         "repeat": "1",
+        "duration": "tau_p",
+        "table_units": "seconds",
         "period": "",
-        "generated_expression": "(Jamp)*(1)*where(((t-(0))>=0)&((t-(0))<tau_p),1,0)"
+        "generated_expression": "(5.89e7)*(1)*where(((t-(0.0))>=0)&((t-(0.0))<tau_p),1,0)"
       }
     }
   ],
