@@ -77,7 +77,7 @@ def test_parameter_changes_propagate_through_generated_expression():
         f = new.func_t(p["expression"])
         actual = quad(lambda x: f(x*2e-9)*2e-9, 0, 1, points=[.2,.4,.8], epsabs=1e-15)[0]
         assert actual == pytest.approx(3e-5, rel=1e-9)
-        assert new.num(p["t_stop"]) == 2e-9
+        assert new.num(p["t_stop"]) == pytest.approx(2e-9, rel=1e-12)
 
 
 def test_short_pulse_existing_convention_reproduced():
@@ -89,7 +89,7 @@ def test_short_pulse_existing_convention_reproduced():
         settings = dict(shape=shape, start="0", duration="support", normalization="peak", amount="Jamp",
                         rise="ramp_fraction*support" if shape == "trapezoid" else "support/5",
                         cutoff="gaussian_cutoff_sigma" if shape == "gaussian" else "3",
-                        sample_shift="sample_dt/2")
+                        sample_shift="sample_dt/2")          # old setting: dropped (midpoint emitter)
         new = ev.func_t(build_pulse(settings, ev)["expression"])
         old = ev.func_t(m["emitters"][0]["current_density"])
         for t in np.linspace(0, ev.num("support")*1.05, 201):
@@ -103,25 +103,40 @@ def test_beam_custom_distribution_keeps_charge_and_default_results():
     m["domain"].update(z_max=".01", nz="16")
     m["species"] = [dict(name="e", preset="electron")]
     m["emitters"] = [dict(name="beam", model="beam", species="e", current_density="1e-4", energy="1",
-                           temperature=".1", particles_per_cell="1000", z0="0")]
+                           temperature=".1", particles_per_cell="4000", z0="0", velocity_version="2")]
     m["simulation"].update(dt="1e-13", n_steps="2")
     def emitted(model):
         sim = Simulation(model, write_output=False, log=lambda _: None)
         return sim, sim.emitters[0].emit(0, sim.dt, np.random.default_rng(10), phi=sim.phi)
-    default, a = emitted(m)
-    explicit = copy.deepcopy(m); explicit["emitters"][0]["velocity_distribution"] = "maxwellian"
-    _, b = emitted(explicit)
-    for key in a:
-        np.testing.assert_array_equal(a[key], b[key])
-    for kind in ("cold", "waterbag", "trapezoid", "arbitrary"):
+    _, a = emitted(m)
+    _, a2 = emitted(copy.deepcopy(m))
+    for key in a:                                  # the default (legacy) beam is unchanged/deterministic
+        np.testing.assert_array_equal(a[key], a2[key])
+    vb = C.c*np.sqrt(1-1/(1+C.e/(C.me*C.c**2))**2)
+    s = np.sqrt(.1*C.e/C.me)
+    cases = {
+        "cold": dict(),
+        "maxwellian": dict(energy="0"),                                  # Rayleigh flux, mean s*sqrt(pi/2)
+        "gaussian": dict(velocity_mean="6e5", velocity_spread="5e4"),
+        "waterbag": dict(velocity_min="2e5", velocity_max="6e5"),
+        "waterbag_phase": dict(velocity_min="2e5", velocity_max="6e5"),
+        "trapezoid": dict(velocity_min="2e5", velocity_max="6e5", velocity_plateau=".5"),
+        "arbitrary": dict(velocity_pdf_0="1e5,0\n3e5,1\n5e5,0", velocity_table_kind="flux"),
+    }
+    expected = {"cold": vb, "maxwellian": s*np.sqrt(np.pi/2), "gaussian": 6e5, "waterbag": 4e5,
+                "waterbag_phase": 2/3*(6e5**3-2e5**3)/(6e5**2-2e5**2), "trapezoid": 4e5, "arbitrary": 3e5}
+    for kind, extra in cases.items():
         custom = copy.deepcopy(m)
-        custom["emitters"][0].update(velocity_distribution=kind, velocity_width=["100", "0", "0"])
+        custom["emitters"][0].update(velocity_distribution=kind, **extra)
         sim, b = emitted(custom)
-        assert b["w"].sum() == a["w"].sum()
+        assert b["w"].sum() == pytest.approx(a["w"].sum(), rel=1e-12)   # same charge
         assert np.all(b["u1"] == 0)  # Existing 1D emitter constraint.
-        if kind in ("cold", "waterbag", "trapezoid"):
-            center = C.c*np.sqrt((1+C.e/(C.me*C.c**2))**2-1)
-            assert np.max(abs(b["u0"]-center)) <= 100.000001
+        assert np.all(b["u0"] >= 0)  # normal speeds point out of the wall
+        u = b["u0"]
+        v = u/np.sqrt(1+(u/C.c)**2)
+        assert v.mean() == pytest.approx(expected[kind], rel=0.03), kind
+        if kind.startswith("waterbag") or kind == "trapezoid":
+            assert v.min() >= 2e5*(1-1e-9) and v.max() <= 6e5*(1+1e-9)
 
 
 @pytest.mark.parametrize("local", [False, True])
@@ -179,10 +194,12 @@ def test_guided_dialogs_cancel_units_and_live_validation():
     assert p.result_spec() == spec
     p.kind.setCurrentIndex(p.kind.findData("gaussian"))
     assert not p.error.text()
-    assert p.compiled["duration"] == 1e-9
+    fwhm = p.compiled["fwhm"]
+    assert fwhm > 0 and p.compiled["duration"] > fwhm      # truncated at +-n sigma
     p.time_unit.setCurrentIndex(p.time_unit.findText("ps"))
-    assert float(p.duration.text()) == 1000
-    assert p.compiled["duration"] == 1e-9
+    assert float(p.fwhm.text()) == pytest.approx(fwhm*1e12)
+    assert p.compiled["fwhm"] == pytest.approx(fwhm, rel=1e-12)
+    p.kind.setCurrentIndex(p.kind.findData("square"))
     p.duration.setText("-2")
     assert not p.buttons.button(QDialogButtonBox.Ok).isEnabled()
     assert p.error.text()

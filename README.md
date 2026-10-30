@@ -46,15 +46,19 @@ name VEL-PIC.)
 
 ## Guided source design
 
-Select **Particle Loading**, or a **beam** under **Emission**, then choose
-**Velocity distribution…** for cold, Maxwellian, waterbag, trapezoid, or custom
-component distributions with a live plot. Under beam/photo Emission,
-**Current pulse…** creates square, trapezoid, Gaussian, and tabulated pulses;
-choose time units and either peak current density or charge per area. Custom
-shapes use editable points or CSV import. Existing models keep their original
-sampling law by default. See the [step-by-step source guide](docs/SOURCE_DESIGNER.md).
-The [checked pulse examples](docs/PULSE_EXAMPLES.md) include square, trapezoid,
-and Gaussian 1D pulses plus vacuum RZ and YZ cases with local mesh refinement.
+Select a **beam** under **Emission** and choose **Velocity distribution…** to set the emitted
+**current-flux distribution P(vₙ)** of the normal speed (vₙ ≥ 0, in m/s): cold, thermal Maxwellian
+flux, truncated Gaussian, uniform-flux waterbag, uniform-phase-density waterbag, trapezoid or a table,
+plus independent transverse spreads. The live plot shows P(vₙ) and the transmission T(b) over a
+potential barrier. **Particle Loading** offers cold, Maxwellian, waterbag, trapezoid or tabulated
+offsets about the drift. **Current pulse…** creates square, trapezoid (rise / flat top / fall),
+Gaussian (FWHM, cutoff), sin² and tabulated pulses and pulse trains in real time units, set by peak
+current density or charge per area. The emitter samples J at the middle of each step with the
+solver's own dt, so no time-step parameter is needed in J(t). Older models are converted
+automatically. See the [step-by-step source guide](docs/SOURCE_DESIGNER.md) and the
+[equations](docs/BEAM_PULSES_DISTRIBUTIONS.md). The [checked pulse examples](docs/PULSE_EXAMPLES.md)
+include square, trapezoid and Gaussian 1D pulses, RZ and ZY cases with local mesh refinement, and a
+space-charge-barrier case.
 
 ## Results
 

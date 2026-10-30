@@ -51,6 +51,28 @@ def _max(*a):
 _ALLOWED_FUNCS["min"] = _min
 _ALLOWED_FUNCS["max"] = _max
 
+
+def speed_eV(E, m=C.me):
+    """Speed [m/s] of a particle of mass m [kg] with kinetic energy E [eV] (relativistic)."""
+    gam = 1.0 + np.asarray(E, float) * C.e / (m * C.c ** 2)
+    return C.c * np.sqrt(np.maximum(1.0 - 1.0 / gam ** 2, 0.0))
+
+
+def energy_eV(v, m=C.me):
+    """Kinetic energy [eV] of a particle of mass m [kg] moving at speed v [m/s] (relativistic)."""
+    b2 = np.minimum((np.asarray(v, float) / C.c) ** 2, 1.0 - 1e-16)
+    return (1.0 / np.sqrt(1.0 - b2) - 1.0) * m * C.c ** 2 / C.e
+
+
+def _interp(x, xp, fp, left=0.0, right=0.0):
+    """Piecewise-linear table f(x) through the points (xp, fp); zero outside the table by default."""
+    return np.interp(x, np.asarray(xp, float), np.asarray(fp, float), left=left, right=right)
+
+
+_ALLOWED_FUNCS["speed_eV"] = speed_eV
+_ALLOWED_FUNCS["energy_eV"] = energy_eV
+_ALLOWED_FUNCS["interp"] = _interp
+
 _ALLOWED_NODES = (
     ast.Expression, ast.BinOp, ast.UnaryOp, ast.Call, ast.Name, ast.Load,
     ast.Constant, ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod,

@@ -146,7 +146,7 @@ class LivePanel(QWidget):
             bar.addWidget(w)
         bar.addStretch()
         lay.addLayout(bar, 0)
-        self.plot = PlotWidget(nrows=2, ncols=2)
+        self.plot = PlotWidget(nrows=2, ncols=2, style="dark")   # dark in both themes
         lay.addWidget(self.plot, 1)
         self.data = None
         self.checked = set()
@@ -172,6 +172,10 @@ class LivePanel(QWidget):
 
     def clear(self, message="Press Run (F5) to start - live plots appear here"):
         """Forget the previous run completely and blank the four plots."""
+        with self.plot.style_context():
+            self._clear(message)
+
+    def _clear(self, message):
         self.reset()
         try:
             self.sig_menu.clear()
@@ -234,6 +238,10 @@ class LivePanel(QWidget):
         self.redraw()
 
     def redraw(self):
+        with self.plot.style_context():         # the live monitor keeps its dark style
+            self._redraw()
+
+    def _redraw(self):
         d = self.data
         if d is None:
             return

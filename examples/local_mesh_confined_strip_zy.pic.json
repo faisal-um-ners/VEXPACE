@@ -121,7 +121,17 @@
       "growth": "1.2"
     }
   ],
-  "objects": [],
+  "objects": [
+    {
+      "name": "vacuum gap",
+      "shape": "rectangle",
+      "material": "vacuum",
+      "z0": "0",
+      "z1": "d",
+      "y0": "0",
+      "y1": "pbar*d/2"
+    }
+  ],
   "species": [
     {
       "name": "electrons",

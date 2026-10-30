@@ -106,6 +106,15 @@
   ],
   "objects": [
     {
+      "name": "vacuum region",
+      "shape": "rectangle",
+      "material": "vacuum",
+      "z0": "-L",
+      "z1": "L",
+      "y0": "0",
+      "y1": "1.5*R"
+    },
+    {
       "name": "tube 1",
       "shape": "rectangle",
       "z0": "-L",

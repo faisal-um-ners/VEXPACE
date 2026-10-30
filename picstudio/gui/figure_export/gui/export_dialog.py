@@ -115,6 +115,8 @@ class ExportOptions:
     legend_handle: float = 2.0         # length of the line sample, in font sizes
     legend_gap: float = 0.8            # gap between line sample and text, in font sizes
     legend_rows: float = 0.5           # vertical space between entries, in font sizes
+    wspace: float = -1.0               # gap between panel columns, fraction of the figure width (<0: auto)
+    hspace: float = -1.0               # gap between panel rows, fraction of the figure height (<0: auto)
     panels: list = field(default_factory=list)
 
 
@@ -354,12 +356,48 @@ def _legend_opts(opts: ExportOptions) -> dict:
     return lo
 
 
+def apply_spacing(fig, opts: ExportOptions):
+    """Gaps between panels of a multi-panel figure (wspace/hspace as fractions of the figure
+    width/height, the meaning used by Matplotlib's constrained layout).  Negative = automatic."""
+    ws = opts.wspace if opts.wspace is not None and opts.wspace >= 0 else None
+    hs = opts.hspace if opts.hspace is not None and opts.hspace >= 0 else None
+    if ws is None and hs is None:
+        return
+    from matplotlib.layout_engine import ConstrainedLayoutEngine
+    eng = fig.get_layout_engine()
+    if isinstance(eng, ConstrainedLayoutEngine):
+        kw = {}
+        if ws is not None:
+            kw["wspace"] = ws
+        if hs is not None:
+            kw["hspace"] = hs
+        eng.set(**kw)
+        return
+    # tight / no layout: convert the figure fraction to subplots_adjust (fraction of a panel size)
+    gs = next((a.get_subplotspec().get_gridspec() for a in fig.axes if a.get_subplotspec() is not None), None)
+    if gs is None:
+        return
+    nr, nc = gs.get_geometry()
+    sp = fig.subplotpars
+    kw = {}
+    if ws is not None and nc > 1:
+        aw = (sp.right - sp.left - (nc - 1) * ws) / nc
+        kw["wspace"] = ws / max(aw, 1e-3)
+    if hs is not None and nr > 1:
+        ah = (sp.top - sp.bottom - (nr - 1) * hs) / nr
+        kw["hspace"] = hs / max(ah, 1e-3)
+    if kw:
+        fig.set_layout_engine(None)
+        fig.subplots_adjust(**kw)
+
+
 def _draw(spec: FigureSpec, opts: ExportOptions, dpi: float, sink):
     spec2 = build_spec(spec, opts)
     with matplotlib.rc_context(export_rc(opts)):
         if hasattr(spec2, "_figure_snapshot"):
             from ..bridge import render_snapshot
             fig, axes = render_snapshot(spec2, opts, dpi)
+            apply_spacing(fig, opts)
             return sink(fig, axes)
         fig = Figure(figsize=(opts.w, opts.h), dpi=dpi)
         if opts.style == "screen":
@@ -368,6 +406,7 @@ def _draw(spec: FigureSpec, opts: ExportOptions, dpi: float, sink):
             axes, _ = render(fig, spec2, publication=True,
                              colors=matplotlib.rcParams["axes.prop_cycle"].by_key()["color"],
                              legend_opts=_legend_opts(opts))
+        apply_spacing(fig, opts)
         return sink(fig, axes)
 
 
@@ -493,6 +532,7 @@ class ExportDialog(QDialog):
         self.defaults = defaults_from_spec(spec, view)
         self.panels = copy.deepcopy(state["panels"]) if state else copy.deepcopy(self.defaults)
         self.suptitle_default = state.get("suptitle", "") if state else ""
+        self.spacing_default = (state.get("wspace", -1.0), state.get("hspace", -1.0)) if state else (-1.0, -1.0)
         self.cur = 0
         self._loading = False
         self.settings = QSettings()
@@ -580,6 +620,8 @@ class ExportDialog(QDialog):
         self.panel_combo.currentIndexChanged.connect(self._switch_panel)
         self._restore_settings()
         self.suptitle.setText(self.suptitle_default)
+        self.wspace.setValue(self.spacing_default[0] if self.spacing_default[0] >= 0 else -0.01)
+        self.hspace.setValue(self.spacing_default[1] if self.spacing_default[1] >= 0 else -0.01)
         self._load_panel(0)
         self._schedule()
 
@@ -692,6 +734,21 @@ class ExportDialog(QDialog):
         show_sup = len(self.spec.axes) > 1 or bool(self.spec.suptitle)
         self.suptitle.setVisible(show_sup)
         self.suptitle_lab.setVisible(show_sup)
+        self.wspace, self.hspace = QDoubleSpinBox(), QDoubleSpinBox()
+        multi = len(self.spec.axes) > 1
+        for sb, txt, tip in ((self.wspace, "Gap between columns (wspace)", "width"),
+                             (self.hspace, "Gap between rows (hspace)", "height")):
+            sb.setRange(-0.01, 0.5)
+            sb.setDecimals(3)
+            sb.setSingleStep(0.01)
+            sb.setSpecialValueText("auto")
+            sb.setValue(-0.01)
+            sb.setToolTip(f"Space between panels as a fraction of the figure {tip}; 'auto' keeps the automatic layout.")
+            lab = QLabel(txt)
+            f.addRow(lab, sb)
+            sb.setVisible(multi)
+            lab.setVisible(multi)
+            sb.valueChanged.connect(self._schedule)
         self.p_title = QLineEdit()
         self.p_x = QLineEdit()
         self.p_y = QLineEdit()
@@ -1080,6 +1137,8 @@ class ExportDialog(QDialog):
     def _reset_all(self):
         self.panels = copy.deepcopy(self.defaults)
         self.suptitle.clear()
+        self.wspace.setValue(-0.01)
+        self.hspace.setValue(-0.01)
         self._load_panel(self.cur)
         self._schedule()
 
@@ -1112,12 +1171,18 @@ class ExportDialog(QDialog):
             markers_per_curve=self.n_markers.value(), legend_pos=self.lg_pos.currentIndex(),
             legend_ncol=self.lg_ncol.value(), legend_frame=self.lg_frame.isChecked(),
             legend_scale=self.lg_scale.value() / 100.0, legend_handle=self.lg_handle.value(),
-            legend_gap=self.lg_gap.value(), legend_rows=self.lg_rows.value(), panels=copy.deepcopy(self.panels))
+            legend_gap=self.lg_gap.value(), legend_rows=self.lg_rows.value(), panels=copy.deepcopy(self.panels),
+            wspace=self._gap(self.wspace), hspace=self._gap(self.hspace))
+
+    @staticmethod
+    def _gap(sb):
+        return sb.value() if sb.value() >= 0 else -1.0
 
     def state(self) -> dict:
         """Plot-specific edits, so reopening the dialog for the same plot keeps them."""
         self._store_panel()
-        return {"panels": copy.deepcopy(self.panels), "suptitle": self.suptitle.text()}
+        return {"panels": copy.deepcopy(self.panels), "suptitle": self.suptitle.text(),
+                "wspace": self._gap(self.wspace), "hspace": self._gap(self.hspace)}
 
     def ext(self) -> str:
         return FORMATS[self.fmt.currentIndex()][1]

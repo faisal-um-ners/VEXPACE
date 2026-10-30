@@ -30,8 +30,9 @@ full-run checks of the saved input files.
 Change `D`, `V0`, `k`, `f`, and `dt_fraction` under **Parameters**. `T`, pulse FWHM
 `tau`, full support, current amplitude, and timestep update through expressions.
 Change the axial cell count under **Domain & Mesh**. The timestep is aligned to
-an integer number of steps across the pulse support. The emission expression
-samples current at each step's midpoint. `end_over_T` controls the observation
+an integer number of steps across the pulse support. The emitter samples the
+current at each step's midpoint, Q = J(t+dt/2)·A·dt, so the expression itself
+contains no time shift. `end_over_T` controls the observation
 window; extend it if particles remain in the gap.
 
 The trapezoid uses an inferred ramp fraction `0.15` of its full support, so its
@@ -74,38 +75,38 @@ is included in each example's **Model > Description**.
 | `gaussian_cutoff_sigma` | Number of standard deviations on each side of the Gaussian centre; defaults 2.5 (diode), 2 (drift). |
 | `gaussian_retained_fraction` | `erf(gaussian_cutoff_sigma/sqrt(2))`; stored numerically for compatibility with older versions. Update it if changing the cutoff. |
 | `dt_fraction` | Requested maximum timestep divided by `T`; default `0.0002`. |
-| `sample_dt` | Actual step `support/ceil(support/(dt_fraction*T))`; makes support an integer number of steps without exceeding the requested timestep. |
+| `sample_dt` | The simulation time step `support/ceil(support/(dt_fraction*T))`; makes support an integer number of steps without exceeding the requested timestep. It is not used in the J(t) expression. |
 | `end_over_T` | Observation duration divided by `T`; independent of emission duration. |
 
-For readability let $u=t+\mathrm{sample\_dt}/2$. This is the **midpoint of the
-current step**, not an extra emission delay. `u` is only notation here; the
-copyable expressions below spell it out. The gate
-`where(((t+sample_dt/2)>=0)&((t+sample_dt/2)<support),1,0)` is 1 inside the
-support and 0 outside. `&` means both comparisons must hold.
+The emitter evaluates J(t) at the **midpoint of each step** (t+dt/2) itself, so the
+expressions below are written in plain time t. The gate
+`where((t>=0)&(t<support),1,0)` is 1 inside the support and 0 outside. `&` means
+both comparisons must hold. (Earlier versions wrote `t+sample_dt/2` into the
+expression; the results are identical.)
 
 **Square pulse.** Set `support=tau`, `pulse_area_time=support`:
 
 ```text
-Jamp*(1)*where(((t+sample_dt/2)>=0)&((t+sample_dt/2)<support),1,0)
+Jamp*(1)*where((t>=0)&(t<support),1,0)
 ```
 
 **Trapezoid pulse.** Set `support=tau/(1-ramp_fraction)` and
 `pulse_area_time=support*(1-ramp_fraction)`:
 
 ```text
-Jamp*(max(0,min(1,min((t+sample_dt/2)/support,1-(t+sample_dt/2)/support)/ramp_fraction)))*where(((t+sample_dt/2)>=0)&((t+sample_dt/2)<support),1,0)
+Jamp*(max(0,min(1,min(t/support,1-t/support)/ramp_fraction)))*where((t>=0)&(t<support),1,0)
 ```
 
-The inner `min(u/support,1-u/support)` supplies the rising and falling ramps.
+The inner `min(t/support,1-t/support)` supplies the rising and falling ramps.
 Dividing by `ramp_fraction` sets their slopes. The outer `min(1,...)` limits the
 peak to 1; `max(0,...)` prevents negative emission. With $r=\mathrm{ramp\_fraction}$
 and $S=\mathrm{support}$, the dimensionless shape is
 
 $$
-g(u)=\begin{cases}
-u/(rS),&0\le u<rS,\\
-1,&rS\le u<(1-r)S,\\
-(S-u)/(rS),&(1-r)S\le u<S,\\
+g(t)=\begin{cases}
+t/(rS),&0\le t<rS,\\
+1,&rS\le t<(1-r)S,\\
+(S-t)/(rS),&(1-r)S\le t<S,\\
 0,&\text{otherwise}.
 \end{cases}
 $$
@@ -121,7 +122,7 @@ of the support and the plateau is 70%. For example, if `tau=1e-11` s, then
 `pulse_area_time=sigma_t*sqrt(2*pi)*gaussian_retained_fraction`:
 
 ```text
-Jamp*(exp(-0.5*(((t+sample_dt/2)-support/2)/sigma_t)**2))*where(((t+sample_dt/2)>=0)&((t+sample_dt/2)<support),1,0)
+Jamp*(exp(-0.5*((t-support/2)/sigma_t)**2))*where((t>=0)&(t<support),1,0)
 ```
 
 The centre is `support/2`. Use a cutoff greater than `sqrt(2*log(2))` to retain
@@ -129,10 +130,10 @@ both half-maximum crossings so `tau` remains the pulse FWHM. At the support
 edges the finite Gaussian tail is cut to zero. The default retained fractions
 are `0.9875806693484477` for cutoff 2.5 and `0.9544997361036416` for cutoff 2.
 
-For every shape, $J(u)=J_{\mathrm{amp}}g(u)$ and
+For every shape, $J(t)=J_{\mathrm{amp}}g(t)$ and
 
 $$
-\int J(u)\,du=J_{\mathrm{amp}}\,\mathrm{pulse\_area\_time}
+\int J(t)\,dt=J_{\mathrm{amp}}\,\mathrm{pulse\_area\_time}
 =\mathrm{pulse\_charge\_per\_area}.
 $$
 

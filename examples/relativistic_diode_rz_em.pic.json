@@ -87,6 +87,15 @@
   "mesh_refinements": [],
   "objects": [
     {
+      "name": "vacuum region",
+      "shape": "rectangle",
+      "material": "vacuum",
+      "z0": "0",
+      "z1": "Lz",
+      "y0": "0",
+      "y1": "rout"
+    },
+    {
       "name": "cathode stalk",
       "shape": "rectangle",
       "z0": "-1",

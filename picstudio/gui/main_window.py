@@ -184,8 +184,9 @@ class MainWindow(QMainWindow):
         apply_matplotlib(name)
         import matplotlib as mpl
         for pw, grid in ((self.geo_plot, (1, 1)), (self.live.plot, (2, 2)), (self.results.plot, (1, 1))):
-            pw.fig.set_facecolor(mpl.rcParams["figure.facecolor"])
-            pw.set_grid(*grid)
+            pw.set_grid(*grid)                 # the live plot keeps its own (dark) style
+            if pw is not self.live.plot:
+                pw.fig.set_facecolor(mpl.rcParams["figure.facecolor"])
         self.draw_geometry()
         self.live.redraw()
         self.results.redraw()
@@ -638,6 +639,7 @@ class MainWindow(QMainWindow):
                             painted=self.chk_paint.isChecked(), selected=self.selected)
             from ..post.ticks import unit_axes
             unit_axes(ax, "m", "" if self.model["simulation"]["geometry"] == "1D-Z" else "m")
+            ax.grid(False, which="both")       # no axis grid in the geometry/mesh view (it would mix with the mesh)
             from ..mesh.grid import grid_from_model
             mc = M.complete(self.model)
             g = grid_from_model(mc, M.evaluator(mc))

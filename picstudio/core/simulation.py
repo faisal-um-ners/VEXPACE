@@ -292,7 +292,7 @@ class Simulation:
             sp = self.sp_by_name.get(em["species"])
             if sp is None:
                 continue
-            E = ev.num(em.get("energy", 0)) + 4 * ev.num(em.get("temperature", 0))
+            E = ev.num(str(em.get("energy", "")).strip() or "0") + 4 * ev.num(str(em.get("temperature", "")).strip() or "0")
             gam = 1 + E * C.e / (sp.m * C.c ** 2)
             vmax = max(vmax, C.c * math.sqrt(1 - 1 / gam ** 2))
         cands = []

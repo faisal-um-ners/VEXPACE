@@ -246,21 +246,71 @@ SPECIES = [
 
 # The GUI edits these fields in a guided dialog with a plot, rather than a raw form.
 VELOCITY_FIELD_NAMES = {"velocity_distribution", "velocity_width", "velocity_plateau",
-                        "velocity_pdf_0", "velocity_pdf_1", "velocity_pdf_2"}
+                        "velocity_pdf_0", "velocity_pdf_1", "velocity_pdf_2", "velocity_mean",
+                        "velocity_spread", "velocity_min", "velocity_max", "velocity_table_kind",
+                        "transverse_distribution", "transverse_width", "velocity_version"}
 
 
 def velocity_fields(beam=False):
-    visible = {"model": ["beam"]} if beam else {}
+    """Particle Loading: drift + symmetric offsets of the phase-space density f(v).
+    Beam emission: current-flux distribution P(v_n) of the normal speed (v_n >= 0, SI) plus
+    independent transverse spreads (see picstudio.sources.distributions)."""
+    if not beam:
+        return [
+            Field("velocity_distribution", "choice", "default", "Velocity distribution",
+                  choices=("default", "cold", "maxwellian", "waterbag", "trapezoid", "arbitrary"),
+                  help="Offsets of each velocity component about the drift (phase-space density of "
+                       "the loaded particles); u = gamma*v in m/s, like the drift."),
+            Field("velocity_width", "vec3", ["1e5", "1e5", "1e5"], "Half-widths", "m/s",
+                  show_if={"velocity_distribution": ["waterbag", "trapezoid"]}),
+            Field("velocity_plateau", "expr", "0.5", "Plateau fraction", "",
+                  show_if={"velocity_distribution": ["trapezoid"]}),
+            *[Field(f"velocity_pdf_{c}", "text", "-100000, 0\n0, 1\n100000, 0", f"Component {c} PDF",
+                    show_if={"velocity_distribution": ["arbitrary"]}) for c in range(3)],
+        ]
+    visible = {"model": ["beam"]}
+    bounded = ["waterbag", "waterbag_phase", "trapezoid"]
     return [
-        Field("velocity_distribution", "choice", "default", "Velocity distribution",
-              choices=("default", "cold", "maxwellian", "waterbag", "trapezoid", "arbitrary"),
-              show_if=visible, help="Default preserves the existing temperature/energy law. Custom shapes are independent component PDFs in u=gamma*v."),
-        Field("velocity_width", "vec3", ["1e5", "1e5", "1e5"], "Half-widths", "m/s",
-              show_if={**visible, "velocity_distribution": ["waterbag", "trapezoid"]}),
+        Field("velocity_distribution", "choice", "default", "Normal-velocity distribution",
+              choices=("default", "cold", "maxwellian", "gaussian", "waterbag", "waterbag_phase",
+                       "trapezoid", "arbitrary"), show_if=visible,
+              help="Current-flux distribution P(v_n) of the speed normal to the emitter (v_n >= 0, "
+                   "particles always leave the surface).  default: beam energy plus an isotropic "
+                   "thermal spread (older models).  cold: all at the beam-energy speed.  maxwellian: "
+                   "P ~ v exp(-m v^2/2kT) at the emission temperature, raised by the beam energy as "
+                   "an acceleration.  gaussian: truncated Gaussian of mean and sigma.  waterbag: "
+                   "uniform current flux between v- and v+.  waterbag_phase: uniform phase density "
+                   "(P ~ v) between v- and v+.  trapezoid: flat plateau with linear edges.  "
+                   "arbitrary: your table of speed and weight."),
+        Field("velocity_mean", "expr", "", "Mean normal speed", "m/s",
+              show_if={**visible, "velocity_distribution": ["gaussian"]},
+              help="Blank: the speed of the beam energy.  speed_eV(E, me) converts an energy in eV."),
+        Field("velocity_spread", "expr", "1e5", "Normal speed sigma", "m/s",
+              show_if={**visible, "velocity_distribution": ["gaussian"]}),
+        Field("velocity_min", "expr", "0", "Lowest normal speed v-", "m/s",
+              show_if={**visible, "velocity_distribution": bounded}),
+        Field("velocity_max", "expr", "2e5", "Highest normal speed v+", "m/s",
+              show_if={**visible, "velocity_distribution": bounded}),
         Field("velocity_plateau", "expr", "0.5", "Plateau fraction", "",
               show_if={**visible, "velocity_distribution": ["trapezoid"]}),
-        *[Field(f"velocity_pdf_{c}", "text", "-100000, 0\n0, 1\n100000, 0", f"Component {c} PDF",
-                show_if={**visible, "velocity_distribution": ["arbitrary"]}) for c in range(3)],
+        Field("velocity_pdf_0", "text", "0, 0\n1e5, 1\n2e5, 1\n3e5, 0", "Normal-speed table", "m/s",
+              show_if={**visible, "velocity_distribution": ["arbitrary"]}),
+        Field("velocity_table_kind", "choice", "flux", "Table gives", choices=("flux", "phase_density"),
+              show_if={**visible, "velocity_distribution": ["arbitrary"]},
+              help="flux: the weight is the current-flux distribution P(v_n).  phase_density: the "
+                   "weight is the phase-space density f(v_n); VEXPACE samples P ~ v_n f(v_n)."),
+        Field("transverse_distribution", "choice", "thermal", "Transverse velocities",
+              choices=("thermal", "cold", "gaussian", "waterbag", "trapezoid", "arbitrary"),
+              show_if={**visible, "velocity_distribution": ["cold", "maxwellian", "gaussian", "waterbag",
+                                                            "waterbag_phase", "trapezoid", "arbitrary"]},
+              help="Velocity along the surface and out of plane (symmetric about zero).  thermal: "
+                   "Gaussian of sigma = sqrt(kT/m) at the emission temperature."),
+        Field("transverse_width", "vec2", ["0", "0"], "Transverse sigma / half-width", "m/s",
+              show_if={**visible, "transverse_distribution": ["gaussian", "waterbag", "trapezoid"]}),
+        *[Field(f"velocity_pdf_{c}", "text", "-100000, 0\n0, 1\n100000, 0",
+                ("Along-surface" if c == 1 else "Out-of-plane") + " offset table", "m/s",
+                show_if={**visible, "transverse_distribution": ["arbitrary"]}) for c in (1, 2)],
+        Field("velocity_version", "str", "2", "Velocity format", show_if={"model": ["__never__"]}),
     ]
 
 

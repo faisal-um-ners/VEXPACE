@@ -294,8 +294,7 @@ def open_export(plot):
     spec, view = snapshot_spec(plot.fig)
     if not spec.axes:
         return
-    color = plot.fig.get_facecolor()
-    name = "dark" if sum(color[:3]) < 1.5 else "light"
+    name = "light"            # the export dialog is always light (also for the dark live monitor)
     T.set_current(name)
     key = (spec.signature(), tuple((a.title,a.xlabel,a.ylabel) for a in spec.axes))
     if not hasattr(plot, "_export_state"):

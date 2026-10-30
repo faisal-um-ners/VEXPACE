@@ -266,7 +266,7 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
     if geom != "1D-Z":
         ratio = (z1 - z0) / max(y1 - y0, 1e-300)
         ax.set_aspect("equal" if 0.25 < ratio < 4 else "auto", adjustable="box")
-    ax.grid(False)                         # geometry / mesh view: no axis grid (the mesh is drawn itself)
+    ax.grid(False, which="both")          # geometry / mesh view: no axis grid (the mesh is drawn itself)
     ax.set_title(f"{m.get('name', '')}  [{geom}, {m['simulation']['solver']}]", fontsize=9)
 
 

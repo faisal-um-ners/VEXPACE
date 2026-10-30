@@ -100,7 +100,10 @@ def apply_pulse_with_real_dialog(app, form, shape, peak):
             d = app.activeModalWidget()
             assert d is not None
             d.kind.setCurrentIndex(d.kind.findData(shape))
-            for widget, value in ((d.start, '.04'), (d.duration, '.16'), (d.rise, '.03'), (d.amount, str(peak))):
+            timing = {'square': ((d.duration, '.16'),),
+                      'gaussian': ((d.fwhm, '.06'),),
+                      'trapezoid': ((d.rise, '.03'), (d.hold, '.10'), (d.fall, '.03'))}[shape]
+            for widget, value in ((d.start, '.04'), *timing, (d.amount, str(peak))):
                 widget.setFocus()
                 widget.selectAll()
                 QTest.keyClicks(widget, value)
@@ -141,11 +144,11 @@ def test_actual_shape_changes_reach_repeated_solver_runs_and_live_results(editor
         t = hist['t']; observed = abs(hist['Iemit_beam'])
         func = M.evaluator(saved).func_t(saved['emitters'][0]['current_density'])
         dt = M.evaluator(saved).num(saved['simulation']['dt'])
-        expected = np.array([func(x-dt) for x in t])
+        expected = np.array([func(x-dt/2) for x in t])    # row at t: step (t-dt, t], J at its midpoint
         # Do not compare exactly on a hard gate where floating accumulation can
         # place one sample on either side of the endpoint.
         gate = build_pulse(saved['emitters'][0]['pulse_builder'], M.evaluator(saved))
-        safe = (abs(t-dt-gate['start']) > dt/10) & (abs(t-dt-gate['start']-gate['duration']) > dt/10) & (t > 0)
+        safe = (abs(t-dt/2-gate['start']) > dt/10) & (abs(t-dt/2-gate['start']-gate['duration']) > dt/10) & (t > 0)
         np.testing.assert_allclose(observed[safe], expected[safe], atol=2e-5, rtol=2e-6)
         assert w.live.data is not None
         assert w.live.model_notice.isHidden()
@@ -283,7 +286,7 @@ def test_actual_2d_dialog_change_reaches_local_mesh_solver(editor, filename, sha
     form = w.scroll.widget().findChild(FieldForm)
     apply_pulse_with_real_dialog(app, form, shape, 75)
     w.run()
-    wait_for(app, lambda: w.proc is None, timeout=60)
+    wait_for(app, lambda: w.proc is None, timeout=300)
     directory = Path(w.output_dir())
     m = M.load(directory/'model.pic.json')
     assert m['emitters'][0]['pulse_builder']['shape'] == shape

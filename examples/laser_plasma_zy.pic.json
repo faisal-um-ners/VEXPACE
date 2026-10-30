@@ -86,7 +86,17 @@
     "workers": 2
   },
   "mesh_refinements": [],
-  "objects": [],
+  "objects": [
+    {
+      "name": "vacuum region",
+      "shape": "rectangle",
+      "material": "vacuum",
+      "z0": "0",
+      "z1": "Lz",
+      "y0": "-Ly/2",
+      "y1": "Ly/2"
+    }
+  ],
   "species": [
     {
       "name": "electrons",

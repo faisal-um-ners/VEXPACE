@@ -66,8 +66,8 @@ class Emitter:
         self.t_stop = ev.num(spec.get("t_stop", 1e9))
         self.npc = max(1, int(round(ev.num(spec.get("particles_per_cell", 4)))))
         self.Jfunc = ev.func_t(spec.get("current_density", "0"))
-        self.energy = ev.num(spec.get("energy", 0))
-        self.T_eV = ev.num(spec.get("temperature", 0))
+        self.energy = ev.num(str(spec.get("energy", "")).strip() or "0")   # blank = 0 eV
+        self.T_eV = ev.num(str(spec.get("temperature", "")).strip() or "0")
         self.W = ev.num(spec.get("work_function", 4.5))
         self.beta = ev.num(spec.get("beta", 1))
         self.Tc = ev.num(spec.get("cathode_temperature", 2000))
@@ -381,8 +381,13 @@ class Emitter:
 
     def emit(self, t, dt, rng, step=0, rank=0, size=1, phi=None, efield=None, reaction=None, yee=None,
              static_E=None, qnodes=None):
-        """Create particles emitted during the step (t, t+dt].  Returns dict or None."""
-        if t < self.t_start or t > self.t_stop:
+        """Create particles emitted during the step (t, t+dt].  Returns dict or None.
+
+        A prescribed J(t) (beam, photo) is sampled at the middle of the step, Q = J(t + dt/2) A dt
+        (midpoint rule): the emitted charge of a short pulse is then centred on the step, with no
+        user-side time shift, and the actual solver time step is always the one used."""
+        tm = t + 0.5 * dt
+        if tm < self.t_start or tm > self.t_stop:
             self.last_current = 0.0
             return None
         sp = self.sp
@@ -393,7 +398,7 @@ class Emitter:
         A = self.area * self.profile
         model = self.model
         if model in ("beam", "photo"):
-            Q = self.Jfunc(t) * A * dt
+            Q = self.Jfunc(tm) * A * dt
         elif model == "scl":
             Q = np.where(force_n > 0, self.relax * C.eps0 * np.abs(En) * A, 0.0)
         elif model == "fowler_nordheim":
@@ -426,16 +431,16 @@ class Emitter:
         ut = np.zeros(N)
         uo = np.zeros(N)
         if model == "beam":
-            gam = 1.0 + self.energy * C.e / (m * C.c ** 2)
-            un[:] = C.c * np.sqrt(gam ** 2 - 1.0)
             kind = self.spec.get("velocity_distribution", "default")
-            if kind in ("cold", "waterbag", "trapezoid", "arbitrary"):
-                from .distributions import sample_offsets
-                offsets = sample_offsets(self.spec, self.ev, rng, N)
-                un += offsets[0]
-                ut += offsets[1]
-                uo += offsets[2]
-            elif self.T_eV > 0:
+            if kind != "default":
+                # current-flux distribution of the normal speed (v_n >= 0) + transverse spreads,
+                # sampled as real velocities in SI and converted to u = gamma*v
+                from .distributions import sample_emission
+                un, ut, uo = sample_emission(self.spec, self.ev, rng, N, m)
+            else:
+                gam = 1.0 + self.energy * C.e / (m * C.c ** 2)
+                un[:] = C.c * np.sqrt(gam ** 2 - 1.0)
+            if kind == "default" and self.T_eV > 0:
                 vt = np.sqrt(self.T_eV * C.e / m)
                 un += vt * rng.standard_normal(N)
                 ut += vt * rng.standard_normal(N)

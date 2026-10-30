@@ -23,7 +23,7 @@ PAPERS = {
 
 
 def pulse_expression(shape):
-    clock = '(t+sample_dt/2)'
+    clock = 't'
     if shape == 'square':
         profile = '1'
     elif shape == 'trapezoid':
@@ -32,7 +32,7 @@ def pulse_expression(shape):
         profile = f'exp(-0.5*(({clock}-support/2)/sigma_t)**2)'
     else:
         raise ValueError(f'Unknown pulse shape: {shape}')
-    # Current is sampled at each step midpoint; support spans whole steps.
+    # The emitter evaluates J at each step midpoint (Q = J(t+dt/2) A dt); support spans whole steps.
     return f'Jamp*({profile})*where(({clock}>=0)&({clock}<support),1,0)'
 
 
@@ -40,16 +40,16 @@ def pulse_description(shape):
     detail = {
         'square': 'Square: shape=1 inside support; support=tau; pulse_area_time=support.',
         'trapezoid': (
-            'Trapezoid: with u=t+sample_dt/2, rise linearly from 0 to Jamp over '
-            '0 <= u < ramp_fraction*support; stay at Jamp until '
-            'u=(1-ramp_fraction)*support; then fall linearly to zero at u=support. '
+            'Trapezoid: rise linearly from 0 to Jamp over '
+            '0 <= t < ramp_fraction*support; stay at Jamp until '
+            't=(1-ramp_fraction)*support; then fall linearly to zero at t=support. '
             'ramp_fraction is EACH ramp duration / full support (0 < ramp_fraction <= 0.5; '
             'default 0.15). The min/max terms clip the shape between 0 and 1. '
             'support=tau/(1-ramp_fraction); pulse_area_time=support*(1-ramp_fraction).'
         ),
         'gaussian': (
-            'Gaussian: center=support/2, shape=exp(-0.5*((u-support/2)/sigma_t)**2), '
-            'where u=t+sample_dt/2. sigma_t=tau/(2*sqrt(2*log(2))) is the time standard deviation; '
+            'Gaussian: center=support/2, shape=exp(-0.5*((t-support/2)/sigma_t)**2). '
+            'sigma_t=tau/(2*sqrt(2*log(2))) is the time standard deviation; '
             'support=2*gaussian_cutoff_sigma*sigma_t. Cutoff is 2.5 sigma (diode) or 2 sigma (drift). '
             'pulse_area_time=sigma_t*sqrt(2*pi)*gaussian_retained_fraction; '
             'gaussian_retained_fraction=erf(gaussian_cutoff_sigma/sqrt(2)). '
@@ -59,15 +59,16 @@ def pulse_description(shape):
     }[shape]
     return (
         '\n\nPulse setup: edit named values under Parameters, and the expression under '
-        'Emission > pulse > Current density [A/m^2]. t is solver time [s]; '
-        'u=t+sample_dt/2 samples the midpoint of the current step. '
-        'The where((u>=0)&(u<support),1,0) gate emits only for 0 <= u < support; '
+        'Emission > pulse > Current density [A/m^2]. t is time [s]; the emitter evaluates J '
+        'at the middle of every time step (Q = J(t+dt/2)*A*dt), so no time shift is written here. '
+        'The where((t>=0)&(t<support),1,0) gate emits only for 0 <= t < support; '
         '& means both comparisons must hold. Keep emitter t_start=0, t_stop=support '
         'and simulation dt=sample_dt. support is full pulse duration [s]; tau=k*T is FWHM [s]. '
         'Jamp=pulse_charge_per_area/pulse_area_time is peak current density [A/m^2], '
         'not total current. pulse_charge_per_area=f*sigma_ref [C/m^2]; '
         'pulse_area_time is the integral of the dimensionless pulse shape [s]. '
-        'sample_dt=support/ceil(support/(dt_fraction*T)) aligns support to whole steps; '
+        'sample_dt=support/ceil(support/(dt_fraction*T)) is the simulation time step, chosen so that '
+        'support is a whole number of steps; '
         'dt_fraction=0.0002 is the requested maximum step / T. '
         + detail + '\nCurrent density expression: ' + pulse_expression(shape)
     )

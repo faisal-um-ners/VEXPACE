@@ -4,6 +4,9 @@ from __future__ import annotations
 import matplotlib
 
 matplotlib.use("QtAgg")
+import contextlib  # noqa: E402
+
+import matplotlib as mpl  # noqa: E402
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 from PySide6.QtWidgets import QSizePolicy, QVBoxLayout, QWidget  # noqa: E402
@@ -16,9 +19,13 @@ class ExportToolbar(NavigationToolbar2QT):
 
 
 class PlotWidget(QWidget):
-    def __init__(self, parent=None, nrows=1, ncols=1, figsize=(6, 4)):
+    def __init__(self, parent=None, nrows=1, ncols=1, figsize=(6, 4), style=None):
+        """style: a theme name ("dark"/"light") that this plot keeps whatever the application theme
+        is (the live monitor stays dark); None follows the application theme."""
         super().__init__(parent)
-        self.fig = Figure(figsize=figsize, layout="constrained")
+        self._style = style
+        with self.style_context():
+            self.fig = Figure(figsize=figsize, layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
         self.canvas.setMinimumSize(120, 80)
         self.toolbar = ExportToolbar(self.canvas, self)
@@ -33,9 +40,18 @@ class PlotWidget(QWidget):
         self.setMinimumSize(150, 120)
         self.set_grid(nrows, ncols)
 
+    def style_context(self):
+        """Context in which artists of this plot are created (fixed style or the current theme)."""
+        if not self._style:
+            return contextlib.nullcontext()
+        from .theme import matplotlib_rc
+        return mpl.rc_context(matplotlib_rc(self._style))
+
     def set_grid(self, nrows, ncols):
-        self.fig.clear()
-        self.axes = [self.fig.add_subplot(nrows, ncols, i + 1) for i in range(nrows * ncols)]
+        with self.style_context():
+            self.fig.clear()
+            self.fig.set_facecolor(mpl.rcParams["figure.facecolor"])
+            self.axes = [self.fig.add_subplot(nrows, ncols, i + 1) for i in range(nrows * ncols)]
         self._cbars = {}
         return self.axes
 
@@ -48,7 +64,8 @@ class PlotWidget(QWidget):
                 cb.remove()
             except Exception:  # noqa: BLE001
                 pass
-        self._cbars[id(ax)] = self.fig.colorbar(im, ax=ax, shrink=0.85)
+        with self.style_context():
+            self._cbars[id(ax)] = self.fig.colorbar(im, ax=ax, shrink=0.85)
 
     def remove_colorbar(self, ax):
         cb = self._cbars.pop(id(ax), None)

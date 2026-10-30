@@ -5,39 +5,39 @@ Open **File → Examples**, select one of the following, and select
 **Apply to model**, then **Run**. The last run remains visible when settings change, with a notice that
 it used earlier settings. Plots are replaced when the next run starts. A cancelled or failed save cancels Run, rather than running the old file.
 
-| Example file | Coordinates | Pulse shape | Velocity spread | Mesh |
+| Example file | Coordinates | Pulse shape | Emitted normal-speed law | Mesh |
 |---|---|---|---|---|
-| `source_designer_beam_1d.pic.json` | 1D z | Gaussian | Maxwellian, kT = 0.5 eV | 120 uniform cells |
-| `source_designer_square_1d.pic.json` | 1D z | Square | Waterbag, axial half-width 200 km/s | 120 uniform cells |
-| `source_designer_trapezoid_1d.pic.json` | 1D z | Trapezoid | Trapezoid, axial half-width 200 km/s | 120 uniform cells |
-| `source_designer_pulse_rz.pic.json` | Axisymmetric z,r | Gaussian | Maxwellian, kT = 0.5 eV | Local P1 triangles |
-| `source_designer_pulse_zy.pic.json` | Cartesian z,y (YZ plane) | Trapezoid | Waterbag, half-width 200 km/s per component | Local P1 triangles |
+| `source_designer_beam_1d.pic.json` | 1D z | Gaussian, FWHM 0.1 ns, ±3σ | truncated Gaussian, μ = v_b, σ = 200 km/s | 120 uniform cells |
+| `source_designer_square_1d.pic.json` | 1D z | Square, 0.3 ns | uniform-flux waterbag v_b ± 200 km/s | 120 uniform cells |
+| `source_designer_trapezoid_1d.pic.json` | 1D z | Trapezoid 0.06/0.18/0.06 ns | trapezoid on v_b ± 200 km/s, plateau 0.5 | 120 uniform cells |
+| `source_designer_pulse_rz.pic.json` | Axisymmetric z,r | Gaussian, FWHM 0.1 ns, ±3σ | Maxwellian flux, kT = 0.2 eV, thermal transverse | Local P1 triangles |
+| `source_designer_pulse_zy.pic.json` | Cartesian z,y | Trapezoid 0.06/0.18/0.06 ns | waterbag v_b ± 200 km/s, transverse waterbag 200 km/s | Local P1 triangles |
+| `Gaussian_VD_Barrier.pic.json` | 1D z | constant 1e5 A/m² | half-Gaussian flux (μ = 0, σ = 200 km/s) | 512 uniform cells |
 
-These are illustrative beam transport problems, not published benchmark cases.
-All have a vacuum interior with **no geometry objects, no applied fields**, a
-15 mm axial domain, 1 keV injected electrons, and both axial boundary planes
-grounded. The current is prescribed by the **beam** emission model. The
-self-consistent space-charge field is still solved; “vacuum” does not turn
-off the particles' own field.
+v_b is the speed of the 1 keV beam energy (`speed_eV(beam_energy)`). These are illustrative beam
+transport problems, not published benchmark cases. Each has a labelled **vacuum** geometry object over
+the gap (first in the object list, so it never carves electrodes); it does not change the fields. The
+current is prescribed by the **beam** emission model and the self-consistent space-charge field is
+solved; "vacuum" does not turn off the particles' own field.
+
+* **1D drifts:** 15 mm grounded gap, 1 keV electrons, peak 10 A/m², start 0.1 ns.
+* **RZ small disk:** emitter radius R = 0.1 mm at the cathode of a 10 mm, 10 kV gap; peak 1e4 A/m²
+  (below the planar Child–Langmuir value 2.3e4 A/m²); outer radius 20R (Neumann, absorbing).
+* **ZY sheet beam:** half-width R = 1.5 mm, 15 mm grounded gap, 1 keV, peak 100 A/m²; y = 0 is a
+  symmetry plane, so the measured current is per unit depth for the half strip.
+* **Gaussian_VD_Barrier:** injection far above the space-charge limit of a 15 mm, 100 V gap
+  (Child–Langmuir 10.4 A/m²), so a potential minimum forms in front of the emitter and reflects most
+  electrons. The model check reports this on purpose; compare the transmitted fraction with T(b) in
+  the Velocity distribution dialog.
 
 ## Pulse and observation times
 
-- Physical pulse start: **0.10 ns**.
-- Full pulse duration: **0.30 ns**, ending at **0.40 ns**.
-- Peak current density: **10 A/m²** in the 1D cases and **100 A/m²** in the 2D cases.
-- Gaussian cutoff: **3 sigma** on each side; FWHM is about **0.118 ns**.
-- Trapezoid: each ramp is **0.06 ns**, with a **0.18 ns** flat top.
-- Timestep: **1 ps**, giving 300 steps across the pulse support.
-- Observation ends at **1.5 ns**, after the pulse has crossed the domain.
-
-The advanced source evaluation offset is explicitly `pic_dt/2`, matching the
-midpoint-current convention of the earlier short-pulse examples. The current
-expression and its time gates share this offset. The particle pusher and
-emission law are unchanged.
-
-Pulse controls contain the source's duration and strength. Global parameters
-contain the geometry, beam energy, solver timestep, and observation end. There
-are no duplicate, inactive pulse-duration parameters in these examples.
+- Time step: **dt = 1 ps** entered directly in Study / Solver (no extra parameter).
+- The emitter samples J at the middle of every step, Q = J(t + dt/2)·A·dt; the J(t) expressions
+  contain no time shift.
+- Observation ends at **1.5 ns** (1,500 steps), after the pulse has crossed the domain.
+- Pulse controls hold the source's timing and strength; global parameters hold geometry, beam
+  energy and observation end.
 
 At the final time the domain is empty: the pulse has reached the collector.
 The history still shows its emission and arrival. To see spatial particles or
@@ -46,34 +46,24 @@ for example around 0.2–1.0 ns.
 
 ## Two-dimensional vacuum mesh
 
-The RZ and YZ cases have an emitter radius/half-width `R = 1.5 mm` and a
-transverse extent `4*R = 6 mm`. The planar case represents the positive-y
-half of a symmetric strip: y=0 is a symmetry plane. The RZ case uses r=0 as
-the symmetry axis. The outer transverse boundary has a Neumann field condition
-and absorbs particles. The measured planar current is for this half strip,
-per unit out-of-plane depth.
+The local triangle mesh follows the approach in `local_mesh_b0_envelope_zy`:
 
-The local mesh follows the approach in `local_mesh_b0_envelope_zy`:
+1. A **filled polygon** covers the assumed expanding pulse envelope (RZ: target size R/2; ZY: R/8),
+   buffer 0.4R, growth 1.2.
+2. A **filled rectangle** resolves the emission region more finely (RZ: z 0…D/10, r 0…1.2R, size
+   R/6; ZY: z 0…D/12, y 0…1.2R, size R/12), buffer R/5, growth 1.2.
 
-1. A **filled polygon** covers an assumed expanding pulse envelope, with
-   target size `R/6`, a safety buffer `.4*R`, and growth ratio 1.2.
-2. A **filled rectangle** resolves injection more finely, from z=0 to D/12
-   and transverse coordinate 0 to 1.2R, with target size `R/12`, buffer R/5,
-   and growth ratio 1.2.
-
-The background resolution is 40×24. The final conforming triangular mesh is
-nonuniform and fixed before PIC. The polygon and rectangle only prescribe
-resolution; they are not walls and do not constrain trajectories. Smoothing
-is zero, as required by the local P1 backend.
+The background mesh is 40×8 (RZ, nearly square cells) and 40×24 (ZY). The conforming triangular mesh
+is fixed before PIC; the polygon and rectangle only prescribe resolution and do not constrain
+trajectories. Smoothing is zero, as required by the local P1 backend. The model check warns if a
+refinement size is not smaller than the background cell (it would have no effect).
 
 ## Verification
 
-All five examples were run for their full 1,500 steps in `tfgpu`. Recorded
+The five pulse examples run for their full 1,500 steps. Recorded
 emitted current was compared with the requested waveform, the injected charge
 was integrated, collection was balanced, and saved vacuum fields were checked
-for finite values. The largest continuous-charge discrepancy was about 0.032%
-in the RZ case, where the existing radial macro-particle weighting introduces
-sampling variation. This is a functionality check, not a mesh/timestep/particle
+for finite values. In the RZ case the emitted charge agrees with the requested 3.33e-14 C to 0.1 %. This is a functionality check, not a mesh/timestep/particle
 convergence study.
 
 GUI regression tests also change square → Gaussian → trapezoid, rerun into the

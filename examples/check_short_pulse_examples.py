@@ -23,7 +23,7 @@ def check(root):
         Jamp, support, tau, dt = [ev.num(k) for k in ('Jamp','support','tau','sample_dt')]
         current = m['emitters'][0]['current_density']
         def value(physical_t):
-            return ev.num(current, t=physical_t-dt/2)
+            return ev.num(current, t=physical_t)
         shape = path.stem.split('_')[-2]
         peak_t = support/2
         assert abs(value(peak_t)/Jamp-1) < 1e-12

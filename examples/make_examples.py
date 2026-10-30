@@ -113,12 +113,13 @@ def add_phimin_probe(m, z_end, y="0"):
                                                           "along": "z", "y": y, "start": "0", "end": z_end}]
 
 
-def add_vacuum_gap(m, z0="0", z1="d", y0="-Ly", y1="Ly"):
-    """Explicit 'vacuum gap' geometry object covering the diode gap.  The domain is vacuum by default
+def add_vacuum_gap(m, z0="0", z1="d", y0="-Ly", y1="Ly", name="vacuum gap"):
+    """Explicit vacuum geometry object covering the diode gap / drift region.  It is put first in the
+    object list, so it never carves holes in electrodes painted after it.  The domain is vacuum by default
     (eps0) and the electrodes are the conductor boundaries z = 0 (cathode) and z = d (anode), so this
     object changes nothing in the solution; it only shows the gap region in the Geometry Objects list
     (boundary conductors always take precedence over painted objects)."""
-    m["objects"] = [{"name": "vacuum gap", "shape": "rectangle", "material": "vacuum",
+    m["objects"] = [{"name": name, "shape": "rectangle", "material": "vacuum",
                      "z0": z0, "z1": z1, "y0": y0, "y1": y1}] + list(m.get("objects", []))
 
 
@@ -235,6 +236,7 @@ def beam_drift_tube_rz():
                       "y1": "a", "current_density": "I0/(pi*a**2)", "energy": "Eb", "particles_per_cell": "4"}]
     m["simulation"].update(t_end="12e-9")
     m["diagnostics"].update(history_every="20", field_every="500", particle_every="500")
+    add_vacuum_gap(m, "0", "Lz", "0", "Rt", name="drift region")
     out(m, "beam_drift_tube_rz.pic.json")
 
 
@@ -255,6 +257,7 @@ def beam_solenoid_rz():
                              "radius": "Rs", "ampere_turns": "BB*0.48/mu0"}]
     m["simulation"].update(t_end="12e-9")
     m["diagnostics"].update(history_every="20", field_every="500", particle_every="500")
+    add_vacuum_gap(m, "0", "Lz", "0", "Rt", name="drift region")
     out(m, "beam_solenoid_rz.pic.json")
 
 
@@ -505,6 +508,7 @@ def laser_focus_zy():
     m["probes"] = [{"name": "Ex_focus", "quantity": "Ex", "z": "15*lam", "y": "0"}]
     m["simulation"].update(t_end="110e-15", cfl="0.95")
     m["diagnostics"].update(history_every="2", field_every="100", particle_every="100000")
+    add_vacuum_gap(m, "0", "30*lam", "-15*lam", "15*lam", name="vacuum region")
     out(m, "laser_focus_zy.pic.json")
 
 
@@ -534,6 +538,7 @@ def laser_plasma_zy():
                          "start": "-Ly/2+2*lam", "end": "Ly/2-2*lam"}]
     m["simulation"].update(t_end="200e-15", cfl="0.95", smoothing=1, initial_field="none")
     m["diagnostics"].update(history_every="4", field_every="300", particle_every="600", live_every="100")
+    add_vacuum_gap(m, "0", "Lz", "-Ly/2", "Ly/2", name="vacuum region")
     out(m, "laser_plasma_zy.pic.json")
 
 
@@ -557,6 +562,7 @@ def beam_plasma_zy():
                          ppc="4")]
     m["simulation"].update(t_end="120/wp", cfl="0.95", smoothing=1)
     m["diagnostics"].update(history_every="5", field_every="300", particle_every="300", live_every="100")
+    add_vacuum_gap(m, "0", "L", "0", "L/2", name="vacuum region")
     out(m, "beam_plasma_zy.pic.json")
 
 
@@ -584,6 +590,7 @@ def plasma_wakefield_rz():
     m["simulation"].update(t_end="4*lp/c", cfl="0.95", smoothing=1, initial_field="none")
     m["probes"] = [{"name": "Ez_axis", "quantity": "Ez", "z": "1.5*lp", "y": "0"}]
     m["diagnostics"].update(history_every="5", field_every="200", particle_every="400", live_every="50")
+    add_vacuum_gap(m, "0", "Lz", "0", "Lr", name="vacuum region")
     out(m, "plasma_wakefield_rz.pic.json")
 
 
@@ -606,6 +613,7 @@ def relativistic_diode_rz_em():
     m["power_lines"] = [{"name": "P_in", "orientation": "z", "position": "0.03", "start": "rin", "end": "rout"}]
     m["simulation"].update(t_end="5e-9", cfl="0.9")
     m["diagnostics"].update(history_every="5", field_every="300", particle_every="300")
+    add_vacuum_gap(m, "0", "Lz", "0", "rout", name="vacuum region")
     out(m, "relativistic_diode_rz_em.pic.json")
 
 
@@ -625,6 +633,7 @@ def dielectric_charging_zy():
                       "particles_per_cell": "4"}]
     m["simulation"].update(t_end="40e-9")
     m["diagnostics"].update(history_every="20", field_every="500", particle_every="500")
+    add_vacuum_gap(m, "0", "Lz", "0", "Ly", name="vacuum region")
     out(m, "dielectric_charging_zy.pic.json")
 
 
@@ -693,6 +702,7 @@ def beam_expansion_zy():
                       "temperature": "0", "particles_per_cell": "8"}]
     m["simulation"].update(t_end="4e-9")
     m["diagnostics"].update(history_every="10", field_every="500", particle_every="500")
+    add_vacuum_gap(m, "0", "Lz", "-Ly", "Ly", name="drift region")
     out(m, "beam_expansion_zy.pic.json")
 
 
@@ -828,6 +838,7 @@ def two_cylinder_lens_rz():
         {"name": "Ez_axis", "quantity": "Ez", "extremum": "min", "along": "z", "y": "0", "start": "-4*R", "end": "4*R"}]
     m["simulation"].update(t_end="1e-9", dt="1e-10")
     m["diagnostics"].update(history_every="1", field_every="10", particle_every="10")
+    add_vacuum_gap(m, "-L", "L", "0", "1.5*R", name="vacuum region")
     out(m, "two_cylinder_lens_rz.pic.json")
 
 

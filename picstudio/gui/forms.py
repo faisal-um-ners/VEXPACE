@@ -216,13 +216,13 @@ class FieldForm(QWidget):
     def update_visibility(self):
         for f in self.fields:
             vis = S.is_visible(f, self.values) and f.name not in S.VELOCITY_FIELD_NAMES
-            if self.source_kind and f.name == "temperature" and self.values.get("velocity_distribution", "default") in ("cold", "waterbag", "trapezoid", "arbitrary"):
-                if self.source_kind == "loader" or self.values.get("model") == "beam":
-                    vis = False
+            if (self.source_kind == "loader" and f.name == "temperature"
+                    and self.values.get("velocity_distribution", "default") in ("cold", "waterbag", "trapezoid", "arbitrary")):
+                vis = False
             self.widgets[f.name].setVisible(vis)
             self.rows[f.name].setVisible(vis)
         if self.source_helpers is not None:
-            from .source_designer import VELOCITY_LABELS
+            from .source_designer import EMISSION_LABELS, LOADER_LABELS
             beam = self.source_kind == "loader" or self.values.get("model") == "beam"
             pulse = self.source_kind == "emitter" and self.values.get("model") in ("beam", "photo")
             self.source_helpers.setVisible(True)
@@ -232,7 +232,8 @@ class FieldForm(QWidget):
                                          "This emission model keeps its physical emission law. To prescribe a current pulse and velocity shape, choose Emission model → beam.")
             self.velocity_button.setVisible(beam)
             self.velocity_summary.setVisible(beam)
-            self.velocity_summary.setText(VELOCITY_LABELS.get(self.values.get("velocity_distribution", "default"), "Custom distribution"))
+            labels = EMISSION_LABELS if self.source_kind == "emitter" else LOADER_LABELS
+            self.velocity_summary.setText(labels.get(self.values.get("velocity_distribution", "default"), "Custom distribution"))
             self.pulse_button.setVisible(pulse)
             self.pulse_summary.setVisible(pulse)
             p = self.values.get("pulse_builder", {})

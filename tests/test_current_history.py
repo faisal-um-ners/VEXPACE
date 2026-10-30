@@ -18,7 +18,7 @@ from picstudio.sources.pulses import build_pulse
 def test_three_step_square_has_three_nonzero_recorded_intervals(geom,name):
     root=Path(__file__).resolve().parents[1]
     m=M.load(root/'examples'/f'source_designer_pulse_{name}.pic.json')
-    settings=dict(shape='square',start='0',duration='3e-12',amount='10000',sample_shift='pic_dt/2')
+    settings=dict(shape='square',start='0',duration='3e-12',amount='10000')
     pulse=build_pulse(settings,M.evaluator(m))
     m['emitters'][0].update(current_density=pulse['expression'],t_start=pulse['t_start'],
                             t_stop=pulse['t_stop'],particles_per_cell='64',
@@ -29,7 +29,8 @@ def test_three_step_square_has_three_nonzero_recorded_intervals(geom,name):
         s.step();rows.append(s.history_row())
     H=np.asarray(rows);cols=s.history_columns();i=cols.index('Iemit_pulsed_beam')
     np.testing.assert_array_equal(np.flatnonzero(H[:,i]),[1,2,3])
-    area=np.pi*.0015**2 if geom=='2D-RZ' else .0015
+    R=M.evaluator(m).num('R')
+    area=np.pi*R**2 if geom=='2D-RZ' else R
     np.testing.assert_allclose(abs(H[1:4,i])/area,10000,rtol=.01)
     np.testing.assert_array_equal(H[4:,i],0)
     assert np.isclose(np.sum(H[1:,i]*np.diff(H[:,cols.index('t')])),

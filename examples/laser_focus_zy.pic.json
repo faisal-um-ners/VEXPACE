@@ -81,7 +81,17 @@
     "workers": 2
   },
   "mesh_refinements": [],
-  "objects": [],
+  "objects": [
+    {
+      "name": "vacuum region",
+      "shape": "rectangle",
+      "material": "vacuum",
+      "z0": "0",
+      "z1": "30*lam",
+      "y0": "-15*lam",
+      "y1": "15*lam"
+    }
+  ],
   "species": [],
   "loaders": [],
   "emitters": [],

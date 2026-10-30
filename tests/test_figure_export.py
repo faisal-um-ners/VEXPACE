@@ -43,7 +43,8 @@ def test_export_dialog_class_is_identical_to_requested_upstream():
     source=Path(E.__file__).read_text()
     node=next(n for n in ast.parse(source).body if isinstance(n,ast.ClassDef) and n.name=='ExportDialog')
     text=''.join(source.splitlines(True)[node.lineno-1:node.end_lineno])
-    assert hashlib.sha256(text.encode()).hexdigest()=='e78afd69a1fb9eea7b34cc8120683a69dc6593ebfc965692e78abb977c1b67fa'
+    # upstream class + panel-gap (wspace/hspace) controls added for multi-panel figures
+    assert hashlib.sha256(text.encode()).hexdigest()=='07facea02cc4ea67ec46df91a03ae074b2ca407a3b225ca38a10a4eb493a2e45'
     assert [value for label,value in E.FORMATS]==['png','pdf','svg','eps','tiff']
 
 

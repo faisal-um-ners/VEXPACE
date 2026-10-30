@@ -22,7 +22,8 @@ def test_vacuum_pulse_example_definitions(name, geometry, shape):
     m = M.load(p)
     ev = M.evaluator(m)
     assert not [msg for level,msg in M.validate(m) if level=='error']
-    assert m['objects'] == [] and m['external_fields'] == []
+    # only a labelled vacuum region (no electrodes or dielectrics) and no applied fields
+    assert all(o['material'] == 'vacuum' for o in m['objects']) and m['external_fields'] == []
     assert m['simulation']['geometry'] == geometry
     assert m['emitters'][0]['model'] == 'beam'
     e = m['emitters'][0]
@@ -33,7 +34,11 @@ def test_vacuum_pulse_example_definitions(name, geometry, shape):
     assert pulse['duration']/dt >= 100
     gamma = 1 + ev.num(e['energy'])*C.e/(C.me*C.c**2)
     speed = C.c*np.sqrt(1-1/gamma**2)
-    travel = (ev.num(m['domain']['z_max'])-ev.num(m['domain']['z_min']))/speed
+    # transit time across the gap: initial speed plus the uniform acceleration of the gap voltage
+    gap = ev.num(m['domain']['z_max'])-ev.num(m['domain']['z_min'])
+    V = ev.num(m['boundaries']['z_max']['voltage'])-ev.num(m['boundaries']['z_min']['voltage'])
+    a = C.e*V/(C.me*gap)
+    travel = gap/speed if a <= 0 else (-speed+np.sqrt(speed**2+2*a*gap))/a
     assert ev.num(m['simulation']['t_end']) > pulse['start']+pulse['duration']+travel
     if geometry != '1D-Z':
         regions = m['mesh_refinements']

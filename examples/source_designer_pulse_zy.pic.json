@@ -1,24 +1,23 @@
 {
   "version": 1,
-  "name": "Trapezoid pulse: 2D YZ (ZY coordinates) vacuum drift",
-  "description": "Finite trapezoid electron pulse drifting through a vacuum interior with no geometry objects, no applied fields, and grounded axial ends. Select Emission > pulsed_beam > Current pulse to change the shape or duration; click Apply, then Run. Old results are cleared when model settings change. This is an illustrative source/transport example, not a published benchmark. Current density is 10 A/m^2 in 1D and 100 A/m^2 in 2D. Pulse starts at 0.10 ns with full duration 0.30 ns; Gaussian FWHM is about 0.118 ns; each trapezoid ramp is 0.06 ns. The explicit pic_dt/2 source evaluation offset uses midpoint current sampling without changing the pusher. The simulation runs until 1.5 ns so the pulse can cross the 15 mm domain. The 2D mesh uses a prescribed beam-envelope polygon and a finer emitter rectangle, with buffer/growth transitions; the outlines control mesh resolution and do not constrain particles. Transverse motion is enabled. The lower transverse boundary is the RZ axis or a planar symmetry plane; the outer transverse boundary uses Neumann fields and absorbing particles.",
+  "name": "Trapezoid pulse: 2D ZY vacuum drift",
+  "description": "Trapezoid sheet-beam pulse (half-width R = 1.5 mm, 1 keV) drifting through a grounded 15 mm gap; y = 0 is a symmetry plane. Emission: uniform-flux waterbag normal speed v_b-2e5 ... v_b+2e5 m/s and a transverse waterbag of half-width 2e5 m/s. J(t): rise 0.06 ns, flat top 0.18 ns, fall 0.06 ns, peak 100 A/m^2. Select Emission > pulsed_beam > Current pulse to change the pulse, and Velocity distribution to change the emitted normal-speed flux; click Apply, then Run. Old results are cleared when model settings change. Illustrative source/transport example, not a published benchmark.",
   "parameters": {
     "D": "15e-3",
+    "R": "1.5e-3",
     "beam_energy": "1000",
-    "pic_dt": "1e-12",
-    "run_end": "1.5e-9",
-    "R": "1.5e-3"
+    "run_end": "1.5e-9"
   },
   "boundaries": {
     "z_min": {
-      "name": "injection_plane",
+      "name": "",
       "field": "conductor",
       "voltage": "0",
       "particles": "absorb",
       "absorber_cells": 16
     },
     "z_max": {
-      "name": "collector",
+      "name": "",
       "field": "conductor",
       "voltage": "0",
       "particles": "absorb",
@@ -43,7 +42,7 @@
     "geometry": "2D-ZY",
     "solver": "electrostatic",
     "t_end": "run_end",
-    "dt": "pic_dt",
+    "dt": "1e-12",
     "cfl": "0.95",
     "n_steps": "",
     "relativistic": true,
@@ -68,8 +67,8 @@
   "diagnostics": {
     "output_dir": "output_source_designer_pulse_zy",
     "history_every": "1",
-    "field_every": "100",
-    "particle_every": "100",
+    "field_every": "50",
+    "particle_every": "50",
     "max_dump_particles": "10000",
     "live_every": "20"
   },
@@ -98,7 +97,7 @@
       "y1": "1e-3",
       "points": "0,0; D,0; D,3*R; .65*D,2.5*R; .25*D,1.6*R; 0,R",
       "buffer": ".4*R",
-      "size": "R/6",
+      "size": "R/8",
       "growth": "1.2"
     },
     {
@@ -118,7 +117,35 @@
       "growth": "1.2"
     }
   ],
-  "objects": [],
+  "objects": [
+    {
+      "name": "drift region",
+      "shape": "rectangle",
+      "z0": "0",
+      "z1": "D",
+      "y0": "0",
+      "y1": "4*R",
+      "zc": "0",
+      "yc": "0",
+      "radius": "1e-3",
+      "radius_inner": "5e-4",
+      "a": "1e-3",
+      "b": "1e-3",
+      "points": "0,0; 1e-3,0; 0,1e-3",
+      "expression": "z**2 + y**2 < 1e-6",
+      "material": "vacuum",
+      "voltage": "0",
+      "eps_r": "1",
+      "loss_spec": "Q",
+      "Q": "250",
+      "frequency": "5.8e9",
+      "fill": "1",
+      "cal_period": "",
+      "cal_phase": "pi",
+      "sigma": "1",
+      "collect_charge": true
+    }
+  ],
   "species": [
     {
       "name": "electrons",
@@ -142,7 +169,7 @@
       "z1": "0",
       "y1": "R",
       "normal": "+z",
-      "current_density": "((100))*(1)*where((((t+(pic_dt/2)-(1e-10))/(3e-10))>=0)&(((t+(pic_dt/2)-(1e-10))/(3e-10))<1),1,0)",
+      "current_density": "(100)*(min((t-(1e-10))/(6e-11),1,(((6e-11)+(1.8e-10)+(6e-11))-(t-(1e-10)))/(6e-11)))*where(((t-(1e-10))>=0)&((t-(1e-10))<((6e-11)+(1.8e-10)+(6e-11))),1,0)",
       "energy": "beam_energy",
       "temperature": "0",
       "work_function": "4.5",
@@ -153,29 +180,36 @@
       "relax": "1.0",
       "profile": "1",
       "particles_per_cell": "32",
-      "t_start": "(1e-10)-(pic_dt/2)",
-      "t_stop": "(1e-10)+(3e-10)-(pic_dt/2)",
+      "t_start": "1e-10",
+      "t_stop": "(1e-10)+((6e-11)+(1.8e-10)+(6e-11))",
       "velocity_distribution": "waterbag",
-      "velocity_width": [
-        "2e5",
-        "2e5",
-        "2e5"
-      ],
+      "velocity_mean": "",
+      "velocity_spread": "1e5",
+      "velocity_min": "speed_eV(beam_energy)-2e5",
+      "velocity_max": "speed_eV(beam_energy)+2e5",
       "velocity_plateau": "0.5",
-      "velocity_pdf_0": "-100000, 0\n0, 1\n100000, 0",
+      "velocity_pdf_0": "0, 0\n1e5, 1\n2e5, 1\n3e5, 0",
+      "velocity_table_kind": "flux",
+      "transverse_distribution": "waterbag",
+      "transverse_width": [
+        "2e5",
+        "0"
+      ],
       "velocity_pdf_1": "-100000, 0\n0, 1\n100000, 0",
       "velocity_pdf_2": "-100000, 0\n0, 1\n100000, 0",
+      "velocity_version": "2",
       "pulse_builder": {
-        "shape": "square",
+        "shape": "trapezoid",
         "start": "1e-10",
-        "duration": "3e-10",
+        "rise": "6e-11",
+        "hold": "1.8e-10",
+        "fall": "6e-11",
         "normalization": "peak",
         "amount": "100",
-        "rise": "6e-11",
-        "cutoff": "3",
-        "points": "0,0\n0.3,1\n0.7,0.5\n1,0",
-        "sample_shift": "pic_dt/2",
-        "generated_expression": "((100))*(1)*where((((t+(pic_dt/2)-(1e-10))/(3e-10))>=0)&(((t+(pic_dt/2)-(1e-10))/(3e-10))<1),1,0)"
+        "table_units": "seconds",
+        "repeat": "1",
+        "period": "",
+        "generated_expression": "(100)*(min((t-(1e-10))/(6e-11),1,(((6e-11)+(1.8e-10)+(6e-11))-(t-(1e-10)))/(6e-11)))*where(((t-(1e-10))>=0)&((t-(1e-10))<((6e-11)+(1.8e-10)+(6e-11))),1,0)"
       }
     }
   ],

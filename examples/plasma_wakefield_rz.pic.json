@@ -90,7 +90,17 @@
     "workers": 2
   },
   "mesh_refinements": [],
-  "objects": [],
+  "objects": [
+    {
+      "name": "vacuum region",
+      "shape": "rectangle",
+      "material": "vacuum",
+      "z0": "0",
+      "z1": "Lz",
+      "y0": "0",
+      "y1": "Lr"
+    }
+  ],
   "species": [
     {
       "name": "plasma",

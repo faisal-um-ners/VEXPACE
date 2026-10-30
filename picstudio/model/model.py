@@ -55,6 +55,8 @@ def complete(model: dict) -> dict:
         b[side].update((m.get("boundaries", {}) or {}).get(side, {}) or {})
     m["boundaries"] = b
     _migrate_line_probes(m)
+    _migrate_emitter_velocities(m)
+    _migrate_pulses(m)
     for sec, fields in S.LIST_SECTIONS.items():
         items = []
         for it in m.get(sec, []) or []:
@@ -63,6 +65,61 @@ def complete(model: dict) -> dict:
             items.append(d)
         m[sec] = items
     return m
+
+
+def _migrate_emitter_velocities(m):
+    """Emitters saved before VEXPACE 1.4 described beam velocity spreads as offsets about the beam
+    speed (some of them negative, i.e. into the wall).  Convert them once to the absolute
+    normal-speed (current-flux) fields."""
+    from .. import constants as C
+    from ..sources.distributions import migrate_emitter
+    species = {s.get("name"): s for s in (m.get("species") or [])}
+    out = []
+    for it in m.get("emitters", []) or []:
+        if "velocity_version" in it:
+            out.append(it)
+            continue
+        sp = species.get(it.get("species"), {"preset": "electron"})
+        preset = sp.get("preset", "custom")
+        if preset in C.SPECIES_PRESETS and preset != "custom":
+            mass = repr(C.SPECIES_PRESETS[preset][1])
+        else:
+            mass = str(sp.get("mass", "me"))
+        out.append(migrate_emitter(it, mass))
+    if "emitters" in m:
+        m["emitters"] = out
+
+
+def _migrate_pulses(m):
+    """Pulse-builder settings from older versions: drop the user-side sampling shift (the emitter
+    now samples J at the middle of each step) and convert normalised inputs to seconds."""
+    pending = []
+    for it in m.get("emitters", []) or []:
+        pb = it.get("pulse_builder")
+        if not isinstance(pb, dict) or pb.get("generated_expression") != str(it.get("current_density", "")):
+            continue
+        old = ("sample_shift" in pb or (pb.get("shape") == "trapezoid" and "hold" not in pb)
+               or (pb.get("shape") == "gaussian" and "fwhm" not in pb)
+               or (pb.get("shape") == "arbitrary" and pb.get("table_units") != "seconds"))
+        if old:
+            pending.append(it)
+    if not pending:
+        return
+    from ..sources.pulses import build_pulse
+    try:
+        ev = Evaluator(m.get("parameters", {}))
+    except Exception:  # noqa: BLE001
+        return
+    for it in pending:
+        try:
+            p = build_pulse(it["pulse_builder"], ev)
+        except Exception:  # noqa: BLE001
+            continue
+        settings = dict(p["settings"])
+        it["current_density"] = p["expression"]
+        it["t_start"], it["t_stop"] = p["t_start"], p["t_stop"]
+        settings["generated_expression"] = p["expression"]
+        it["pulse_builder"] = settings
 
 
 def _migrate_line_probes(m):
@@ -165,22 +222,48 @@ def validate(model: dict) -> list[tuple[str, str]]:
         for it in m[sec]:
             try:
                 if sec == "loaders" or it.get("model") == "beam":
-                    validate_distribution(it, ev)
+                    validate_distribution(it, ev, emitter=(sec == "emitters"))
                     if it.get("velocity_distribution") == "maxwellian":
                         import math
                         T = ev.num(it.get("temperature", 0))
                         if not math.isfinite(T) or T < 0:
                             raise ValueError("Temperature must be finite and at least zero.")
+                        if sec == "emitters" and T == 0:
+                            msgs.append(("warning", f"Emitter '{it.get('name', '')}': Maxwellian emission "
+                                                    f"with zero temperature is a cold beam at the beam energy."))
             except Exception as exc:
                 msgs.append(("error", f"{sec} '{it.get('name', '')}' velocity distribution: {exc}"))
+    msgs += _emission_velocity_warnings(m, ev)
     from ..sources.pulses import build_pulse
+    dt_text = str(sim.get("dt", "")).strip()
+    dt_val = None
+    if dt_text and dt_text.lower() != "auto":
+        try:
+            dt_val = ev.num(dt_text)
+        except Exception:  # noqa: BLE001
+            dt_val = None
     for it in m["emitters"]:
         p = it.get("pulse_builder", {})
-        if it.get("model") in ("beam", "photo") and p and p.get("generated_expression") == str(it.get("current_density", "")):
+        if it.get("model") not in ("beam", "photo"):
+            continue
+        if p and p.get("generated_expression") == str(it.get("current_density", "")):
             try:
-                build_pulse(p, ev)
+                pulse = build_pulse(p, ev)
             except Exception as exc:
                 msgs.append(("error", f"Emitter '{it.get('name', '')}' pulse: {exc}"))
+                continue
+            if dt_val is None:
+                msgs.append(("warning", f"Emitter '{it.get('name', '')}': a current pulse is defined but the time "
+                                        f"step is automatic.  Set Study / Solver > Time step (dt) so that the "
+                                        f"shortest pulse feature ({pulse['resolve']:.3g} s) spans at least 20 steps."))
+            elif pulse["resolve"] / dt_val < 20:
+                msgs.append(("warning", f"Emitter '{it.get('name', '')}': the shortest pulse feature "
+                                        f"({pulse['resolve']:.3g} s) spans only {pulse['resolve'] / dt_val:.3g} "
+                                        f"time steps; use dt <= {pulse['resolve'] / 20:.3g} s to resolve it."))
+        elif ev.is_time_dependent(it.get("current_density", "0")) and dt_val is None:
+            msgs.append(("info", f"Emitter '{it.get('name', '')}': J(t) is time dependent and the time step is "
+                                 f"automatic; set Study / Solver > Time step if J(t) changes faster than the "
+                                 f"automatic step resolves.  J(t) is sampled at the middle of each step."))
     if solver == "electrostatic" and m["sources"]:
         msgs.append(("warning", "EM sources are ignored by the electrostatic solver"))
     if not m["species"]:
@@ -286,7 +369,24 @@ def _refinement_warnings(m, ev):
         validate_local(m, ev)
     except (ValueError, ArithmeticError) as exc:
         out.append(("error", str(exc)))
+    dom = m["domain"]
+    try:
+        hz = (ev.num(dom["z_max"]) - ev.num(dom["z_min"])) / ev.num(dom["nz"])
+        hy = ((ev.num(dom["y_max"]) - ev.num(dom["y_min"])) / ev.num(dom["ny"])
+              if m["simulation"]["geometry"] != "1D-Z" else hz)
+    except Exception:  # noqa: BLE001
+        hz = hy = None
     for r in refs:
+        try:
+            size = ev.num(r.get("size", 1))
+            axis = r.get("axis", "z")
+            h = hz if axis == "z" else hy if axis == "y" else (min(hz, hy) if hz and hy else None)
+            if h and size >= h:
+                out.append(("warning", f"Mesh refinement '{r.get('name', '')}': cell size {size:.3g} m is not "
+                                       f"smaller than the background cell ({h:.3g} m), so this region refines "
+                                       f"nothing.  Enter the fine cell size you want (e.g. {h / 4:.3g} m)."))
+        except Exception:  # noqa: BLE001
+            pass
         try:
             gr = ev.num(r.get("growth", 1.2))
             if gr > 1.3:
@@ -295,6 +395,35 @@ def _refinement_warnings(m, ev):
                                        "on particles; 1.05-1.2 is recommended."))
         except Exception:  # noqa: BLE001
             pass
+    return out
+
+
+def _emission_velocity_warnings(m, ev):
+    """Beam emitters: thermal spreads that would send particles back into the emitting surface."""
+    import math
+    from .. import constants as C
+    from ..particles.species import Species
+    out = []
+    species = {s.get("name"): s for s in m.get("species", [])}
+    for it in m.get("emitters", []):
+        if it.get("model") != "beam" or it.get("velocity_distribution", "default") != "default":
+            continue
+        try:
+            sp = Species(species.get(it.get("species"), {"name": "e", "preset": "electron"}), ev)
+            T = ev.num(it.get("temperature", 0))
+            E = ev.num(str(it.get("energy", "")).strip() or "0")
+            if T > 0:
+                vt = math.sqrt(T * C.e / sp.m)
+                gam = 1 + E * C.e / (sp.m * C.c ** 2)
+                vb = C.c * math.sqrt(max(1 - 1 / gam ** 2, 0))
+                if vt > 0.3 * vb:
+                    out.append(("warning", f"Emitter '{it.get('name', '')}': the thermal spread sqrt(kT/m) = "
+                                           f"{vt:.3g} m/s is comparable to the beam speed {vb:.3g} m/s, so part of "
+                                           f"the 'default' beam is launched back into the surface.  Choose "
+                                           f"Velocity distribution > Maxwellian (current flux) or Gaussian, "
+                                           f"which emit only v_n > 0."))
+        except Exception:  # noqa: BLE001
+            continue
     return out
 
 
@@ -327,7 +456,7 @@ def _beam_limit_warnings(m, ev):
             e.get("surface", "segment") == "segment" and ev.num(e.get("z0", "0")) != ev.num(e.get("z1", "0"))
             and m["simulation"]["geometry"] != "1D-Z")
         d = (ev.num(dom["y_max"]) - ev.num(dom["y_min"])) if horizontal else (ev.num(dom["z_max"]) - ev.num(dom["z_min"]))
-        Ei = max(ev.value(e.get("energy", "0"), t=0.0), 0.0)
+        Ei = max(ev.value(str(e.get("energy", "")).strip() or "0", t=0.0), 0.0)
         Jlim = 4 * C.eps0 / 9 * math.sqrt(2 * q / mass) * ((dV + Ei) ** 0.75 + Ei ** 0.75) ** 2 / d ** 2
         # small emitting areas carry more (Luginsland 1996, Lau 2001, Lau et al. 2026): use the
         # first-order upper estimates so that the warning only appears when the limit is surely exceeded

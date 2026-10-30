@@ -1,63 +1,65 @@
 # Short pulses, beam injection and velocity distributions
 
-This guide explains how to create **short electron pulses** and choose supported particle velocity distributions in VEXPACE. It describes features available in the current software; arbitrary user-supplied velocity PDFs are **not yet** implemented.
+This guide explains how to create **short electron pulses** and choose the **velocity distribution of
+emitted electrons** in VEXPACE. All inputs are physical SI quantities (seconds, A/m², C/m², m/s, eV);
+nothing in the solver is normalised.
 
 ![Three temporal current profiles: square, trapezoidal and Gaussian](images/short_pulse_shapes.svg)
 
 ## 1. Where to enter a short pulse
 
-1. Open **File → Examples** and choose a `short_pulse_*.pic.json` model, or create an **electrostatic** diode.
+1. Open **File → Examples** and choose a `source_designer_*` or `short_pulse_*` model, or create an
+   **electrostatic** diode.
 2. Select **Emission** and set **Emission model = beam**.
-3. Enter **Current density J(t) [A/m²]** using a time expression. Set **Start time** and **Stop time** to cover the pulse support.
-4. Under **Parameters**, define `Jamp`, `tau`, `support`, `ramp_fraction` or `sigma_t` as required.
-5. Set **Beam / excess energy [eV]** and **Emission temperature [eV]**. Use zero temperature for a cold prescribed-energy beam.
-6. In **Study / Solver**, choose a sufficiently small `dt`; inspect **Output** histories for injected and collected currents and reflection.
+3. Click **Current pulse…** (recommended) or type **Current density J(t) [A/m²]** as a time expression.
+4. Click **Velocity distribution…** to choose the emitted normal-speed law (section 4).
+5. In **Study / Solver**, enter the time step **dt** as a number. A pulse needs a fixed dt: with
+   automatic dt the model check asks you to enter one, and it warns when the shortest pulse feature
+   (rise, fall, FWHM or duration) spans fewer than 20 steps.
 
-**Important:** `t` is the solver time in seconds. The emitter samples `J(t)` per step; the supplied short-pulse examples use `t+sample_dt/2` as their midpoint sampling convention.
-
-## 2. Copyable current profiles
-
-The following expressions use the same evaluator syntax as VEXPACE. Define all variables in **Parameters**. The current density is in A/m².
-
-### Square pulse
-
-Set `support=tau`, `pulse_area_time=support`, and `Jamp=pulse_charge_per_area/pulse_area_time`.
+**How the emitter samples J(t).** `t` is the simulation time in seconds. In each step (t, t+dt] the
+emitter injects the charge
 
 ```text
-Jamp*where((t>=0)&(t<support),1,0)
+Q = J(t + dt/2) * A * dt          (midpoint rule)
 ```
 
-This turns current on abruptly, holds it constant, then switches it off. Use sufficiently fine timesteps to resolve the rising and falling boundaries.
+so the injected charge of a pulse is centred on the step and the solver's own dt is always used. No
+time-shift parameter (such as the former `pic_dt/2` or `sample_dt/2`) belongs in the J(t) expression.
+Files written by older versions are converted automatically when they are opened.
 
-### Trapezoidal pulse
+## 2. Pulse shapes (Current pulse… dialog)
 
-Set `ramp_fraction=0.15`, `support=tau/(1-ramp_fraction)`, `pulse_area_time=support*(1-ramp_fraction)`, and `Jamp=pulse_charge_per_area/pulse_area_time`.
+With τ = t − t₀ (t₀ = start time) and peak current density J_p:
+
+| Shape | J(t) for one pulse | Length T | ∫J dt per pulse |
+|---|---|---|---|
+| Square | J_p for 0 ≤ τ < T | duration | J_p T |
+| Trapezoid | linear rise over t_r, flat top t_h, linear fall t_f | t_r + t_h + t_f | J_p (t_r/2 + t_h + t_f/2) |
+| Gaussian | J_p exp(−(τ − T/2)²/2σ²), σ = FWHM / (2√(2 ln 2)) | 2nσ (cut at ±nσ) | J_p σ√(2π) erf(n/√2) |
+| sin² | J_p sin²(πτ/T) (smooth edges, FWHM = T/2) | duration | J_p T/2 |
+| Table | straight lines through (τ [time unit], relative height) | last time | area of the table × J_p |
+
+* **Strength:** enter either the **peak current density** [A/m²] or the **charge per area** of one
+  pulse [C/m²]; the other is computed (Q₁ = J_p ∫shape dτ).
+* **Pulse train:** number of pulses N and period P ≥ T; the train carries N Q₁.
+* **Units:** ps, ns, µs or s in the dialog; the model stores seconds. Parameter names typed in the
+  fields stay as references in the generated expression, so changing a parameter later changes the
+  pulse.
+* The generated expression and its start/stop times are shown under **Advanced**. A J(t) typed by
+  hand remains authoritative.
+
+Example of a generated Gaussian (FWHM 0.1 ns, cut at ±3σ, peak 10 A/m², start 0.1 ns):
 
 ```text
-Jamp*max(0,min(1,min(t/support,1-t/support)/ramp_fraction))*where((t>=0)&(t<support),1,0)
+(10)*(exp(-0.5*(((t-(1e-10))-(3)*((1e-10)/2.3548200450309493))/((1e-10)/2.3548200450309493))**2))*where(((t-(1e-10))>=0)&((t-(1e-10))<(2*(3)*((1e-10)/2.3548200450309493))),1,0)
 ```
-
-The two ramps each occupy `ramp_fraction*support` and the flat top occupies `(1-2*ramp_fraction)*support`. This is the *temporal current* envelope, not an energy distribution.
-
-### Truncated Gaussian pulse
-
-Define `tau` as the intended **full width at half maximum**, `sigma_t=tau/(2*sqrt(2*log(2)))`, `gaussian_cutoff_sigma=2.5`, `support=2*gaussian_cutoff_sigma*sigma_t` and `pulse_area_time=sigma_t*sqrt(2*pi)*0.9875806693484477`. The retained fraction applies **only** for the displayed cutoff of 2.5 standard deviations. Set `Jamp=pulse_charge_per_area/pulse_area_time`.
-
-```text
-Jamp*exp(-0.5*((t-support/2)/sigma_t)**2)*where((t>=0)&(t<support),1,0)
-```
-
-For the exact example expressions with midpoint sampling, `sample_dt` and dynamic pulse normalization, see [the six short-pulse examples](../examples/SHORT_PULSE_EXAMPLES.md).
 
 ### Comparing shapes fairly
 
-Keep the **injected charge per area** constant:
-
-```text
-Jamp = pulse_charge_per_area / pulse_area_time
-```
-
-The support duration is not necessarily the FWHM. With a Gaussian, current never truly vanishes without an explicit cutoff. Inspect actual collected current separately from injected current.
+Keep the **injected charge per area** constant (choose "charge per area" in the dialog). The support
+duration is not the FWHM; a Gaussian needs an explicit cutoff. Inspect collected current separately
+from injected current.
 
 ## 3. Ready-to-run 2025–2026 short-pulse models
 
@@ -74,46 +76,62 @@ These are representative paper-parameter examples, **not exact reproductions of 
 
 These files and the additional assumptions are documented in [SHORT_PULSE_EXAMPLES.md](../examples/SHORT_PULSE_EXAMPLES.md). In particular, the drift cases have unresolved normalization differences relative to the referenced publication; do not describe them as validated exact paper reproductions.
 
-## 4. Particle velocity and energy distributions
+## 4. Velocity distribution of emitted electrons (Velocity distribution… dialog)
 
-![Velocity component, Maxwell–Boltzmann speed, and thermionic flux distributions](images/velocity_distributions.svg)
+![Emission flux laws P(v_n)](images/velocity_distributions.svg)
 
-**Temporal current shape and injected velocity distribution are separate choices.** A Gaussian *current pulse* does not automatically give Gaussian particle velocities.
+**Temporal current shape and velocity distribution are separate choices.** A Gaussian current pulse
+does not give Gaussian velocities.
 
-| VEXPACE input | Implemented behavior |
-|---|---|
-| **Emission → beam**, energy = `E0`, temperature = 0 | Prescribed-energy beam without thermal spread |
-| **Emission → beam**, temperature = `T_eV` | Gaussian thermal perturbations added to injected momentum components, in addition to a prescribed energy |
-| **Particle Loading**, temperature = `T_eV` | Each initial velocity/momentum component uses a Gaussian thermal distribution with drift; the associated 3D speed follows a Maxwell–Boltzmann distribution in the nonrelativistic thermal limit |
-| **Particle Loading**, quiet start = on | Quieter Maxwellian-quantile initialization when the code's per-cell particle requirement is met |
-| **Emission → thermionic** | Outgoing normal component follows flux-weighted half-Maxwellian sampling; transverse components have thermal Gaussian spreads |
-| **Emission → photo** | Uniform sampled excess energy up to the user-entered maximum and Lambertian angular sampling |
+For a **beam** emitter the dialog defines the **current-flux distribution P(vₙ)** of the normal speed:
+the fraction of the emitted *current* carried by electrons with normal speed vₙ (vₙ ≥ 0, always out of
+the surface). This is the quantity used in emission theory; it differs from the density
+distribution f by one factor of vₙ (P ∝ vₙ f). The two transverse components are chosen separately.
+Speeds are real velocities in m/s; VEXPACE samples v and stores u = γv.
 
-### Cold monoenergetic beam
+| Law | P(vₙ), vₙ ≥ 0 | Inputs |
+|---|---|---|
+| Cold | δ(vₙ − v_b), v_b = c√(1 − 1/γ²), γ = 1 + eE/mc² | beam energy E [eV] |
+| Maxwellian (thermal flux) | (m/kT) vₙ exp(−m vₙ²/2kT); mean √(πkT/2m). With E > 0: vₙ → √(vₙ² + 2eE/m) | kT [eV], energy offset E [eV] |
+| Truncated Gaussian | exp(−(vₙ − μ)²/2σ²) / [√(2π) σ Φ(μ/σ)] | mean μ [m/s] (blank = v_b), σ [m/s] |
+| Waterbag (uniform flux) | 1/(v₊ − v₋) on [v₋, v₊] | v₋, v₊ [m/s] |
+| Waterbag (uniform phase density) | 2vₙ/(v₊² − v₋²) on [v₋, v₊] (constant f, e.g. Ignatov 2025) | v₋, v₊ [m/s] |
+| Trapezoid | linear rise, plateau (fraction p of [v₋, v₊]), linear fall | v₋, v₊, p |
+| Table | straight lines through (vₙ [m/s], weight); weight = flux P or phase density f | table |
 
-Choose **Emission model = beam**, **Beam / excess energy = 1000 eV**, **Emission temperature = 0 eV**. The injected beam has a prescribed initial energy before acceleration in self-consistent fields.
+Expressions are allowed, e.g. `speed_eV(1000)` (speed of a 1 keV electron), `speed_eV(1000)-2e5`, or
+`speed_eV(E, mp)` for another mass; `energy_eV(v)` converts back.
 
-### Thermal beam (Gaussian component spread)
-
-Choose **Emission model = beam**, set **Beam / excess energy** to `1000` eV and **Emission temperature** to, for example, `0.4` eV. This adds normally distributed random components of characteristic width `sqrt(T_eV * e / m)` to the injected momentum/velocity-like variables. It is not a user-defined arbitrary distribution.
-
-### Maxwell–Boltzmann plasma loading
-
-Under **Particle Loading**, select a species, choose **Temperature [eV]** (for example `0.4`), and set **Drift velocity**. With no drift, each nonrelativistic Cartesian velocity component is Gaussian, and the speed distribution has the Maxwell–Boltzmann form
+**Transmission over a barrier.** If space charge forms a potential minimum b volts below the emitter
+(a virtual cathode), only electrons with ½ m vₙ² > e b pass. The dialog shows T(b), the transmitted
+fraction of the emitted current, for the chosen law, e.g.
 
 ```text
-f_speed(v) proportional to v^2 * exp(-m*v^2/(2*k_B*T))
+Maxwellian:          T = exp(-e b / kT)
+truncated Gaussian:  T = [1 - Phi((v_c - mu)/sigma)] / Phi(mu/sigma),   v_c = sqrt(2 e b / m)
+uniform flux:        T = clip((v+ - v_c)/(v+ - v-), 0, 1)
 ```
 
-The temperature input here is `k_B*T` **in eV**, not kelvin. This is a plasma loader, not a boundary electron emitter.
+**Transverse components** (beam emitters): thermal (σ = √(kT/m)), cold, Gaussian, waterbag or
+trapezoid of a given width, or a table. They are independent of the normal law.
 
-### Thermionic emission
+**Older models.** The previous "offset about the beam speed" inputs could launch particles into the
+wall (a waterbag ±w about zero energy sends half the electrons backwards). When such a file is opened
+it is converted once: waterbag/trapezoid → speeds max(0, v_b − w) … v_b + w; the old "maxwellian"
+(a Gaussian about v_b) → truncated Gaussian with σ = √(kT/m) and thermal transverse components;
+tables → absolute speeds. The **Keep existing energy / temperature law** choice keeps the original
+beam rule unchanged.
 
-Choose **Emission model = thermionic** and set cathode temperature in **kelvin**, work function in **eV**, and Schottky correction as needed. The outgoing normal thermal distribution is *flux weighted*. It must not be confused with a Gaussian centered at zero normal velocity.
+### Other sources and loaders
 
-### Arbitrary velocity PDFs: not yet implemented
+| VEXPACE input | Behaviour |
+|---|---|
+| **Particle Loading**, temperature kT | Gaussian of σ = √(kT/m) in each component about the drift (Maxwell–Boltzmann speed) |
+| **Particle Loading → Velocity distribution…** | cold, Maxwellian, waterbag, trapezoid or table **offsets** about the drift, per component |
+| **Emission → thermionic** | flux-weighted half-Maxwellian normal component, thermal transverse components |
+| **Emission → photo** | uniform excess energy up to the maximum, Lambertian angles |
 
-The current GUI does **not** expose a general arbitrary `P(v)`, `P(E)`, bi-Maxwellian, kappa, waterbag, or tabulated-sampling input for **emitted particles**. Do not assume that a temporal expression in **Current density J(t)** changes `P(v)`. Implementing these would require an additional distribution-sampling option in the emission engine, numerical tests, and explicit parameter normalization.
+The loader temperature is k_B T **in eV**, not kelvin.
 
 ## 5. Diagnostic workflow
 
@@ -121,6 +139,6 @@ The current GUI does **not** expose a general arbitrary `P(v)`, `P(E)`, bi-Maxwe
 2. Compare **emitted current** and **collected current**; these need not match during particle transit or reflection.
 3. Inspect potential, current history, particle snapshots and phase space.
 4. Reduce the timestep and increase particles per cell to check numerical convergence.
-5. For distributions, plot injected-particle velocity histograms and compare them with the intended PDF. Do not infer the injected PDF from a downstream beam histogram without accounting for acceleration and filtering.
+5. For distributions, plot injected-particle velocity histograms and compare them with the intended P(vₙ) (remember that a histogram of particles in a slab near the emitter shows the density, ∝ P/vₙ). Do not infer the injected PDF from a downstream beam histogram without accounting for acceleration and filtering.
 
 See also the full [VEXPACE user guide](USER_GUIDE.md), [numerical methods](THEORY.md), and [short-pulse verification notes](../examples/SHORT_PULSE_VERIFICATION.json).

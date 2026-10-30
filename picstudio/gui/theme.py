@@ -124,8 +124,13 @@ QToolTip {{ background: {c['panel']}; color: {c['text']}; border: 1px solid {c['
 
 
 def apply_matplotlib(name="light"):
+    mpl.rcParams.update(matplotlib_rc(name))
+
+
+def matplotlib_rc(name="light"):
+    """Matplotlib settings of a theme (also used for plots that keep one style in both themes)."""
     c = THEMES[name]
-    mpl.rcParams.update({
+    return ({
         "figure.facecolor": c["panel"], "axes.facecolor": c["plot_bg"], "savefig.facecolor": c["plot_bg"],
         "axes.edgecolor": c["grid"], "axes.labelcolor": c["plot_text2"], "axes.titlecolor": c["plot_text"],
         "axes.titlesize": 9.5, "axes.titleweight": "bold", "axes.labelsize": 9, "axes.grid": True,

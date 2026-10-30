@@ -1,116 +1,92 @@
 # Design a velocity distribution or current pulse
 
-Open **Particle Loading** or select a **beam** under **Emission**. The top of
-the settings panel now offers **Velocity distribution…**. Beam and photo
-emitters also offer **Current pulse…**. Both dialogs update their figure as
-you edit. **Apply to model** saves the choice; **Cancel** leaves the model alone.
+Open **Particle Loading** or select a **beam** under **Emission**. The top of the settings panel
+offers **Velocity distribution…**; beam and photo emitters also offer **Current pulse…**. Both
+dialogs redraw their figure as you edit. **Apply to model** saves the choice; **Cancel** leaves the
+model alone. All inputs are physical SI values; nothing is normalised.
 
-See the [five checked vacuum pulse examples](PULSE_EXAMPLES.md) for three 1D
-shapes and locally refined RZ and YZ problems. Changing settings keeps the last run visible with a notice; press Run to
-calculate the changed pulse and replace the plots.
+See the [checked vacuum pulse examples](PULSE_EXAMPLES.md) (three 1D shapes and locally refined RZ
+and ZY problems) and the equations in [BEAM_PULSES_DISTRIBUTIONS.md](BEAM_PULSES_DISTRIBUTIONS.md).
+Changing settings keeps the last run visible with a notice; press Run to calculate the change.
 
-Try **Examples > source_designer_beam_1d** for a ready-to-edit Gaussian pulse
-with a waterbag velocity spread. This is an illustrative setup, not a benchmark.
+## Velocity of emitted electrons (beam emitters)
 
-## Velocity: how different are the initial particle speeds?
+The dialog defines the **current-flux distribution P(vₙ)** of the normal speed, vₙ ≥ 0, i.e. which
+fraction of the emitted current has normal speed vₙ. Every law emits only out of the surface.
 
-The drift in Particle Loading, or the energy in beam Emission, sets the central
-speed. The distribution adds a spread around it. The plot shows this **offset**,
-not the final speed after fields accelerate the particles.
-
-| Choice | Meaning | Main input |
+| Choice | P(vₙ) | Inputs |
 |---|---|---|
-| Keep existing energy / temperature law | Preserve the previous loading or beam rule | Temperature, in eV |
-| Cold | No random spread | None |
-| Maxwellian | Each component has a Gaussian bell-shaped distribution | Temperature kT, in eV |
-| Waterbag | Offsets within a bounded range are equally likely | Half-width for each component, in m/s |
-| Trapezoid | A flat central region with linearly decreasing edges | Half-widths and plateau fraction |
-| Custom | A probability density joined by straight lines between your points | A two-column table for each component |
+| Keep existing energy / temperature law | beam speed + isotropic Gaussian of √(kT/m) (older models) | energy, temperature |
+| Cold | all at the beam speed v_b of the beam energy | energy [eV] |
+| Maxwellian (thermal flux) | (m/kT) vₙ exp(−m vₙ²/2kT), shifted by the energy offset | kT [eV], energy [eV] |
+| Truncated Gaussian | Gaussian of mean μ and σ, cut at vₙ = 0 and renormalised | μ [m/s] (blank = v_b), σ [m/s] |
+| Waterbag (uniform flux) | constant on [v₋, v₊] | v₋, v₊ [m/s] |
+| Waterbag (uniform phase density) | ∝ vₙ on [v₋, v₊] (constant f) | v₋, v₊ [m/s] |
+| Trapezoid | linear rise, plateau fraction p, linear fall on [v₋, v₊] | v₋, v₊, p |
+| Table | straight lines through your (vₙ, weight) points | table, weight = flux or phase density |
 
-A half-width of 100000 means offsets range from −100000 to +100000 m/s.
-A half-width of zero means cold in that component. Trapezoid plateau fraction
-0 gives a triangle; 1 gives a waterbag. A custom table can be asymmetric or have
-several peaks. Heights are relative, must be nonnegative, and are normalized
-automatically. Coordinates must increase. For example:
+The figure shows P(vₙ) in km/s with its mean, the speed range and the corresponding energy range.
+Enter a **barrier** depth b [V] to see the transmitted fraction T(b) of the current (electrons with
+½ m vₙ² > e b). The transverse components are chosen separately: thermal, cold, Gaussian, waterbag,
+trapezoid or table, with widths in m/s.
+
+Fields accept expressions, e.g. `speed_eV(1000)-2e5` … `speed_eV(1000)+2e5` for a waterbag of
+±200 km/s about the speed of a 1 keV electron. A table can be imported from CSV (comma, tab or
+semicolon); speeds must increase and weights be nonnegative:
 
 ```csv
-offset,height
--100000,0
-0,1
-100000,0
+speed,weight
+1e5,0
+3e5,1
+5e5,0
 ```
 
-**Import CSV…** also accepts tab- or semicolon-separated data. You can edit the
-table directly, add points, or remove selected points. Parameter expressions
-are allowed in cells.
+The engine samples real velocities and stores u = γv; v ≥ c is rejected. In 1D the transverse
+components are zeroed as before. Thermionic, photo, Fowler–Nordheim and SCL emitters keep their own
+laws.
 
-Components are independent: these are Cartesian component waterbags, not a
-uniform sphere in velocity space. Loading uses the geometry's z, y/r, x/theta
-components. Beam emission uses normal, along-surface, and out-of-plane
-components before rotation into the geometry. The engine convention is
-u = gamma*v (m/s); at low speeds this equals v. Existing species motion
-constraints still apply. In 1D emission the along-surface component is zeroed
-as before. Arbitrary component tables describe offsets, so their mean need
-not be zero.
+## Velocity of loaded particles (Particle Loading)
 
-The Maxwellian standard deviation is sqrt(kT/m). This is a Gaussian for each
-component; the three-dimensional speed magnitude has a different distribution.
-Thermionic emission retains its flux-weighted outward normal law and Gaussian
-transverse components. Photoemission retains its excess-energy and cosine
-angular law. Custom velocity choices apply to initial loading and prescribed
-beam emission, not to those model-specific laws or SCL emission.
+For a loader the distribution is an **offset about the drift velocity** in each component: cold,
+Maxwellian (σ = √(kT/m)), waterbag (±w), trapezoid (half-width w, plateau fraction) or a table of
+offsets. Components are independent (Cartesian waterbags, not a sphere in velocity space). Both the
+structured and the local triangular loaders support them, including quiet-start quantiles.
 
 ## Pulse: when are particles injected?
 
-Open **Current pulse…** and choose:
-
-- **Square:** constant current during the selected duration.
-- **Trapezoid:** a linear rise, flat top, and equal linear fall.
-- **Gaussian:** a bell curve truncated at its specified cutoff.
-- **Custom:** a two-column table of relative time positions and heights.
-
-Choose ps, ns, microseconds, or seconds; enter a start time and the **full on-window**
-duration. Choose whether to set the **peak current density** in A/m² or the
-**charge per area** in C/m². The other quantity is calculated automatically.
-Changing this entry mode preserves the current pulse's strength.
-
-For a trapezoid, each ramp must fit within half the full duration. For a Gaussian,
-the full duration spans both cutoffs; its FWHM is displayed separately. A cutoff
-of 3 means three standard deviations on each side. For a custom pulse, position
-0 is the start and 1 is the end:
+Open **Current pulse…** and choose **Square**, **Trapezoid** (rise, flat top, fall), **Gaussian**
+(FWHM and cutoff n σ), **sin²**, or a **Table** of (time, relative height). Choose ps, ns, µs or s,
+the start time, and either the **peak current density** [A/m²] or the **charge per area** [C/m²]
+of one pulse; the other is computed. A **pulse train** repeats the pulse N times with a period P.
 
 ```csv
-position,height
+time_ns,height
 0,0
-0.3,1
-0.7,0.5
-1,0
+0.1,1
+0.2,0.5
+0.3,0
 ```
 
-The highest point sets relative height 1. At most 64 pulse points are supported.
-An existing expression is initially preserved and can be previewed over a chosen
-time window. Choosing a preset and applying replaces J(t) and the emitter's start
-and stop times. It does not change the simulation timestep or end time. The
-generated formula is available under **Advanced: evaluation and expression**.
-Parameter references remain in that formula and in the time gates. Reopening
-the dialog or changing time units preserves those references and does not add
-repeated unit-conversion expressions.
+Applying the dialog writes J(t) and the emitter's start/stop times; it does not change the
+simulation dt or end time. Parameter names stay as references in the generated formula (shown under
+**Advanced**), and reopening the dialog or changing units does not grow the expression.
 
-The displayed charge is the continuous integral of J(t), for spatial profile 1;
-an actual simulation samples J at timesteps, and the spatial profile multiplies
-the emitted current. Use enough timesteps across the pulse and check convergence.
-The existing short-pulse examples use an explicit sample_dt/2 evaluation offset;
-the Advanced offset preserves this convention when selected. Zero remains the
-default for new pulses. Existing examples are never rewritten just by opening
-the editor, and manually edited current expressions remain authoritative.
+**Time step.** The emitter evaluates J at the middle of each step, Q = J(t + dt/2)·A·dt, with the
+solver's own dt, so no time-step parameter or shift is part of the pulse. The pulse needs a numeric
+**Study / Solver → dt**; if dt is automatic the dialog and the model check ask you to enter one, and
+the model check warns when the shortest pulse feature spans fewer than 20 steps.
+
+The displayed charge is the continuous integral of J(t) for spatial profile 1. Use enough steps
+across the pulse and check convergence.
 
 ## Compatibility
 
-Existing JSON models receive `velocity_distribution: "default"`, which takes
-the original sampling path with the original random-number sequence. The new
-bounded/table distributions are opt-in. Both structured and local triangular
-particle loaders support them, including quiet-start quantiles. Beam emission
-uses the same charge, weight, time, surface and acceleration rules as before.
-No Poisson, electromagnetic, deposition, gather, pusher, or thermionic/photo/SCL
-current law is changed. The expression helper adds `erf` for exact truncated
-Gaussian charge normalization.
+Models from earlier versions open unchanged in physics where possible:
+
+* `velocity_distribution: "default"` keeps the original sampling path and random sequence.
+* Old offset-type emitter distributions are converted once to absolute normal speeds (a waterbag
+  ±w about the beam speed becomes max(0, v_b − w) … v_b + w; the old "maxwellian" becomes a truncated
+  Gaussian with σ = √(kT/m)). Offsets that pointed into the wall are therefore no longer emitted.
+* Old pulse-builder settings (duration + equal ramps, Gaussian cutoff only, normalised tables, and
+  the `pic_dt/2` / `sample_dt/2` sampling shift) are converted to the new inputs; with midpoint
+  sampling the injected charge per step is the same as before.
