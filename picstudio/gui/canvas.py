@@ -76,6 +76,16 @@ class PlotWidget(QWidget):
                 pass
 
     def draw(self):
+        if self._style:
+            # Tick and grid lines are created lazily at draw time, outside style_context(); give every
+            # axes the same grid of this plot's own style (otherwise the app theme's grid shows).
+            from .theme import matplotlib_rc
+            rc = matplotlib_rc(self._style)
+            for ax in self.fig.axes:
+                ax.tick_params(which="both", grid_color=rc["grid.color"], grid_alpha=rc.get("grid.alpha", 1.0),
+                               grid_linewidth=rc.get("grid.linewidth", 0.7),
+                               color=rc.get("xtick.color", rc["text.color"]),
+                               labelcolor=rc.get("xtick.labelcolor", rc.get("xtick.color", rc["text.color"])))
         self.canvas.draw_idle()
 
     def export_figure(self):
