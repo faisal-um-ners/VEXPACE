@@ -52,9 +52,10 @@ def base(geometry, name, description, parameters):
     return m
 
 
-def finish(m, stem):
+def finish(m, stem, **diagnostics):
     m["diagnostics"].update(output_dir="output_" + stem, history_every="1", field_every="50",
                             particle_every="50", max_dump_particles="10000", live_every="20")
+    m["diagnostics"].update(diagnostics)
     m = complete(m)
     errors = [msg for lvl, msg in validate(m) if lvl == "error"]
     if errors:
@@ -100,32 +101,46 @@ def main():
              "Trapezoid J(t): rise 0.06 ns, flat top 0.18 ns, fall 0.06 ns, peak 10 A/m^2. Normal speed: "
              "trapezoid flux on v_b-2e5 ... v_b+2e5 m/s with a 50 % plateau.")
 
-    # --- 2D RZ: small thermionic-like disk emitter in a 10 kV gap -------------------------------
-    m = base("2D-RZ", "Gaussian pulse: 2D RZ small-disk emitter",
-             "Gaussian electron pulse from a small disk (radius R = 0.1 mm) at the cathode of a 10 mm, 10 kV "
-             "planar gap. Emission: Maxwellian (Rayleigh) current flux of a 0.2 eV cathode, P(v) ~ v exp(-mv^2/2kT), "
-             "with thermal transverse velocities. J(t): FWHM 0.1 ns, +-3 sigma, peak 1e4 A/m^2 (below the "
-             "planar Child-Langmuir value 2.3e4 A/m^2). The local triangle mesh is refined along the "
-             "emission region and the expanding beam. " + GUIDE.format(em="pulsed_beam"),
-             {"D": "10e-3", "R": "0.1e-3", "V0": "10e3", "run_end": "1.5e-9"})
-    m["domain"].update(z_min="0", z_max="D", nz="40", y_min="0", y_max="20*R", ny="8")
+    # --- 2D RZ: Heri-Zhang 2025 short-pulse diode with a small emitter, B = 100 T ----------------
+    m = base("2D-RZ", "Square short pulse: 2D RZ small emitter, Bz = 100 T",
+             "Short square electron pulse from a small circular emitter in the Heri-Zhang (2025) diode: gap "
+             "d = 1.5 mm, V0 = 30 kV, axisymmetric R-Z, electrostatic, axial magnetic field Bz = 100 T. "
+             "Emitter radius R/d = 0.02944 (requested 0.03; R = 44.16 um after grid alignment); outer radial "
+             "boundary 4.8 mm = 3.2 d (dphi/dr = 0, absorbing). T_CL = 3 d / v*, v* = sqrt(2 e V0 / m) "
+             "(43.81 ps); square pulse of duration k_p T_CL = 0.1 T_CL (4.381 ps) starting at t = 0, cold "
+             "emission (energy 0), charge per area Q/A = f eps0 V0 / d with f = 1 (J = 4.04e7 A/m^2); "
+             "observation continues 5 T_CL after the pulse (t_end = k_p T_CL + 5 T_CL = 223.4 ps). "
+             "Bz = 100 T confines the flow: species motion = z_only (electrons move only along +z, the "
+             "infinite-B limit; the gyro-radius at 100 T is far below one cell). motion = full uses the 100 T "
+             "field but then dt must resolve the cyclotron period (0.36 ps). Mesh: fine and uniform along the "
+             "beam column r <= R from cathode to anode (dz = d/256, dr = R/10), growing smoothly to a uniform "
+             "radial spacing above the emitter. dt = pulse/200 (21.9 fs), so the pulse spans 200 steps. "
+             + GUIDE.format(em="pulsed_beam"),
+             {"d": "1.5e-3", "V0": "30e3", "Bz": "100", "R_over_d": "0.02944", "R": "R_over_d*d",
+              "Rout": "3.2*d", "vstar": "sqrt(2*e*V0/me)", "T_CL": "3*d/vstar", "k_p": "0.1",
+              "tau_p": "k_p*T_CL", "f": "1", "Q_per_area": "f*eps0*V0/d", "Jamp": "Q_per_area/tau_p",
+              "n_pulse": "200",
+              "t_obs": "5*T_CL"})
+    m["domain"].update(z_min="0", z_max="d", nz="256", y_min="0", y_max="Rout", ny="48")
     m["boundaries"]["z_min"].update(name="cathode", field="conductor", voltage="0", particles="absorb")
     m["boundaries"]["z_max"].update(name="anode", field="conductor", voltage="V0", particles="absorb")
     m["boundaries"]["y_min"].update(field="axis", particles="reflect")
     m["boundaries"]["y_max"].update(field="neumann", particles="absorb")
-    vacuum(m, "0", "D", "0", "20*R")
+    vacuum(m, "0", "d", "0", "Rout")
     m["mesh_refinements"] = [
-        dict(name="prescribed expanding pulse envelope", enabled=True, axis="local 2D", region_shape="polygon",
-             points="0,0; D,0; D,5*R; 0,1.5*R", buffer=".4*R", size="R/2", growth="1.2"),
-        dict(name="fine along emission region", enabled=True, axis="local 2D", region_shape="rectangle",
-             z0="0", z1="D/10", y0="0", y1="1.2*R", buffer="R/5", size="R/6", growth="1.2")]
-    m["simulation"].update(dt="1e-12", t_end="run_end")
-    pulse_emitter(m, dict(shape="gaussian", start="5e-11", fwhm="1e-10", cutoff="3", normalization="peak",
-                          amount="1e4"),
-                  z0="0", z1="0", y0="0", y1="R", energy="0", temperature="0.2", particles_per_cell="16",
-                  velocity_distribution="maxwellian", transverse_distribution="thermal")
-    m["diagnostics"]["field_every"] = "100"
-    finish(m, "source_designer_pulse_rz")
+        dict(name="beam column (cathode to anode)", enabled=True, axis="y", start="0", end="R",
+             size="R/10", growth="1.1")]
+    m["species"] = [dict(name="electrons", preset="electron", motion="z_only")]
+    m["external_fields"] = [dict(name="axial B", type="uniform", E=["0", "0", "0"], B=["Bz", "0", "0"],
+                                 time_factor="1")]
+    m["simulation"].update(dt="tau_p/n_pulse", t_end="tau_p+t_obs")
+    pulse_emitter(m, dict(shape="square", start="0", duration="tau_p", normalization="peak", amount="Jamp"),
+                  z0="0", z1="0", y0="0", y1="R", energy="0", temperature="0", particles_per_cell="16",
+                  velocity_distribution="cold", transverse_distribution="cold")
+    m["line_probes"] = [dict(name="phi_axis", quantity="phi", extremum="min and max", along="z", y="0",
+                             z="0", start="0", end="d")]
+    finish(m, "source_designer_pulse_rz", history_every="5", field_every="500", particle_every="500",
+           live_every="50")
 
     # --- 2D ZY: sheet beam drifting in a grounded gap -------------------------------------------
     m = base("2D-ZY", "Trapezoid pulse: 2D ZY vacuum drift",

@@ -18,8 +18,9 @@ from picstudio.sources.pulses import build_pulse
 def test_three_step_square_has_three_nonzero_recorded_intervals(geom,name):
     root=Path(__file__).resolve().parents[1]
     m=M.load(root/'examples'/f'source_designer_pulse_{name}.pic.json')
-    settings=dict(shape='square',start='0',duration='3e-12',amount='10000')
-    pulse=build_pulse(settings,M.evaluator(m))
+    ev=M.evaluator(m);dt=ev.num(m['simulation']['dt'])
+    settings=dict(shape='square',start='0',duration=repr(3*dt),amount='10000',normalization='peak')
+    pulse=build_pulse(settings,ev)
     m['emitters'][0].update(current_density=pulse['expression'],t_start=pulse['t_start'],
                             t_stop=pulse['t_stop'],particles_per_cell='64',
                             pulse_builder=dict(settings,generated_expression=pulse['expression']))

@@ -1,12 +1,23 @@
 {
   "version": 1,
-  "name": "Gaussian pulse: 2D RZ small-disk emitter",
-  "description": "Gaussian electron pulse from a small disk (radius R = 0.1 mm) at the cathode of a 10 mm, 10 kV planar gap. Emission: Maxwellian (Rayleigh) current flux of a 0.2 eV cathode, P(v) ~ v exp(-mv^2/2kT), with thermal transverse velocities. J(t): FWHM 0.1 ns, +-3 sigma, peak 1e4 A/m^2 (below the planar Child-Langmuir value 2.3e4 A/m^2). The local triangle mesh is refined along the emission region and the expanding beam. Select Emission > pulsed_beam > Current pulse to change the pulse, and Velocity distribution to change the emitted normal-speed flux; click Apply, then Run. Old results are cleared when model settings change. Illustrative source/transport example, not a published benchmark.",
+  "name": "Square short pulse: 2D RZ small emitter, Bz = 100 T",
+  "description": "Short square electron pulse from a small circular emitter in the Heri-Zhang (2025) diode: gap d = 1.5 mm, V0 = 30 kV, axisymmetric R-Z, electrostatic, axial magnetic field Bz = 100 T. Emitter radius R/d = 0.02944 (requested 0.03; R = 44.16 um after grid alignment); outer radial boundary 4.8 mm = 3.2 d (dphi/dr = 0, absorbing). T_CL = 3 d / v*, v* = sqrt(2 e V0 / m) (43.81 ps); square pulse of duration k_p T_CL = 0.1 T_CL (4.381 ps) starting at t = 0, cold emission (energy 0), charge per area Q/A = f eps0 V0 / d with f = 1 (J = 4.04e7 A/m^2); observation continues 5 T_CL after the pulse (t_end = k_p T_CL + 5 T_CL = 223.4 ps). Bz = 100 T confines the flow: species motion = z_only (electrons move only along +z, the infinite-B limit; the gyro-radius at 100 T is far below one cell). motion = full uses the 100 T field but then dt must resolve the cyclotron period (0.36 ps). Mesh: fine and uniform along the beam column r <= R from cathode to anode (dz = d/256, dr = R/10), growing smoothly to a uniform radial spacing above the emitter. dt = pulse/200 (21.9 fs), so the pulse spans 200 steps. Select Emission > pulsed_beam > Current pulse to change the pulse, and Velocity distribution to change the emitted normal-speed flux; click Apply, then Run. Old results are cleared when model settings change. Illustrative source/transport example, not a published benchmark.",
   "parameters": {
-    "D": "10e-3",
-    "R": "0.1e-3",
-    "V0": "10e3",
-    "run_end": "1.5e-9"
+    "d": "1.5e-3",
+    "V0": "30e3",
+    "Bz": "100",
+    "R_over_d": "0.02944",
+    "R": "R_over_d*d",
+    "Rout": "3.2*d",
+    "vstar": "sqrt(2*e*V0/me)",
+    "T_CL": "3*d/vstar",
+    "k_p": "0.1",
+    "tau_p": "k_p*T_CL",
+    "f": "1",
+    "Q_per_area": "f*eps0*V0/d",
+    "Jamp": "Q_per_area/tau_p",
+    "n_pulse": "200",
+    "t_obs": "5*T_CL"
   },
   "boundaries": {
     "z_min": {
@@ -41,8 +52,8 @@
   "simulation": {
     "geometry": "2D-RZ",
     "solver": "electrostatic",
-    "t_end": "run_end",
-    "dt": "1e-12",
+    "t_end": "tau_p+t_obs",
+    "dt": "tau_p/n_pulse",
     "cfl": "0.95",
     "n_steps": "",
     "relativistic": true,
@@ -58,19 +69,19 @@
   },
   "domain": {
     "z_min": "0",
-    "z_max": "D",
-    "nz": "40",
+    "z_max": "d",
+    "nz": "256",
     "y_min": "0",
-    "y_max": "20*R",
-    "ny": "8"
+    "y_max": "Rout",
+    "ny": "48"
   },
   "diagnostics": {
     "output_dir": "output_source_designer_pulse_rz",
-    "history_every": "1",
-    "field_every": "50",
-    "particle_every": "50",
+    "history_every": "5",
+    "field_every": "500",
+    "particle_every": "500",
     "max_dump_particles": "10000",
-    "live_every": "20"
+    "live_every": "50"
   },
   "parallel": {
     "mode": "serial",
@@ -85,36 +96,20 @@
   },
   "mesh_refinements": [
     {
-      "name": "prescribed expanding pulse envelope",
+      "name": "beam column (cathode to anode)",
       "enabled": true,
-      "axis": "local 2D",
+      "axis": "y",
       "start": "0",
-      "end": "1e-3",
-      "region_shape": "polygon",
+      "end": "R",
+      "region_shape": "rectangle",
       "z0": "0",
       "z1": "1e-3",
       "y0": "0",
       "y1": "1e-3",
-      "points": "0,0; D,0; D,5*R; 0,1.5*R",
-      "buffer": ".4*R",
-      "size": "R/2",
-      "growth": "1.2"
-    },
-    {
-      "name": "fine along emission region",
-      "enabled": true,
-      "axis": "local 2D",
-      "start": "0",
-      "end": "1e-3",
-      "region_shape": "rectangle",
-      "z0": "0",
-      "z1": "D/10",
-      "y0": "0",
-      "y1": "1.2*R",
       "points": "0,0; 1e-2,0; 1e-2,2e-3; 0,2e-4",
-      "buffer": "R/5",
-      "size": "R/6",
-      "growth": "1.2"
+      "buffer": "0",
+      "size": "R/10",
+      "growth": "1.1"
     }
   ],
   "objects": [
@@ -122,9 +117,9 @@
       "name": "vacuum gap",
       "shape": "rectangle",
       "z0": "0",
-      "z1": "D",
+      "z1": "d",
       "y0": "0",
-      "y1": "20*R",
+      "y1": "Rout",
       "zc": "0",
       "yc": "0",
       "radius": "1e-3",
@@ -169,9 +164,9 @@
       "z1": "0",
       "y1": "R",
       "normal": "+z",
-      "current_density": "(1e4)*(exp(-0.5*(((t-(5e-11))-(3)*((1e-10)/2.3548200450309493))/((1e-10)/2.3548200450309493))**2))*where(((t-(5e-11))>=0)&((t-(5e-11))<(2*(3)*((1e-10)/2.3548200450309493))),1,0)",
+      "current_density": "(Jamp)*(1)*where(((t-(0))>=0)&((t-(0))<tau_p),1,0)",
       "energy": "0",
-      "temperature": "0.2",
+      "temperature": "0",
       "work_function": "4.5",
       "beta": "1",
       "cathode_temperature": "2000",
@@ -180,17 +175,20 @@
       "relax": "1.0",
       "profile": "1",
       "particles_per_cell": "16",
-      "t_start": "5e-11",
-      "t_stop": "(5e-11)+(2*(3)*((1e-10)/2.3548200450309493))",
-      "velocity_distribution": "maxwellian",
+      "t_start": "0",
+      "t_stop": "(0)+tau_p",
+      "velocity_distribution": "cold",
       "velocity_mean": "",
       "velocity_spread": "1e5",
+      "velocity_cut_min": "0",
+      "velocity_cut_max": "",
+      "velocity_weight": "flux",
       "velocity_min": "0",
       "velocity_max": "2e5",
       "velocity_plateau": "0.5",
       "velocity_pdf_0": "0, 0\n1e5, 1\n2e5, 1\n3e5, 0",
       "velocity_table_kind": "flux",
-      "transverse_distribution": "thermal",
+      "transverse_distribution": "cold",
       "transverse_width": [
         "0",
         "0"
@@ -199,22 +197,58 @@
       "velocity_pdf_2": "-100000, 0\n0, 1\n100000, 0",
       "velocity_version": "2",
       "pulse_builder": {
-        "shape": "gaussian",
-        "start": "5e-11",
-        "fwhm": "1e-10",
-        "cutoff": "3",
+        "shape": "square",
+        "start": "0",
+        "duration": "tau_p",
         "normalization": "peak",
-        "amount": "1e4",
+        "amount": "Jamp",
         "table_units": "seconds",
         "repeat": "1",
         "period": "",
-        "generated_expression": "(1e4)*(exp(-0.5*(((t-(5e-11))-(3)*((1e-10)/2.3548200450309493))/((1e-10)/2.3548200450309493))**2))*where(((t-(5e-11))>=0)&((t-(5e-11))<(2*(3)*((1e-10)/2.3548200450309493))),1,0)"
+        "generated_expression": "(Jamp)*(1)*where(((t-(0))>=0)&((t-(0))<tau_p),1,0)"
       }
     }
   ],
-  "external_fields": [],
+  "external_fields": [
+    {
+      "name": "axial B",
+      "type": "uniform",
+      "E": [
+        "0",
+        "0",
+        "0"
+      ],
+      "B": [
+        "Bz",
+        "0",
+        "0"
+      ],
+      "Ez": "0",
+      "Ey": "0",
+      "Ex": "0",
+      "Bz": "0",
+      "By": "0",
+      "Bx": "0",
+      "zc": "0",
+      "z_end": "1e-2",
+      "radius": "1e-2",
+      "ampere_turns": "1000",
+      "time_factor": "1"
+    }
+  ],
   "sources": [],
   "probes": [],
-  "line_probes": [],
+  "line_probes": [
+    {
+      "name": "phi_axis",
+      "quantity": "phi",
+      "extremum": "min and max",
+      "along": "z",
+      "y": "0",
+      "z": "0",
+      "start": "0",
+      "end": "d"
+    }
+  ],
   "power_lines": []
 }

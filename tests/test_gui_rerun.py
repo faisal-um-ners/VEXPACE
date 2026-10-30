@@ -93,17 +93,22 @@ def test_run_commits_focused_numeric_editor_before_saving(editor):
     assert M.load(path)['emitters'][0]['energy'] == '250'
 
 
-def apply_pulse_with_real_dialog(app, form, shape, peak):
+def apply_pulse_with_real_dialog(app, form, shape, peak, unit=None, values=None):
+    """values: start and timing entries in the dialog's time unit (default: ns, a 0.16 ns pulse at 0.04 ns)."""
     errors = []
     def edit_modal():
         try:
             d = app.activeModalWidget()
             assert d is not None
+            if unit:
+                d.time_unit.setCurrentIndex(d.time_unit.findText(unit))
             d.kind.setCurrentIndex(d.kind.findData(shape))
-            timing = {'square': ((d.duration, '.16'),),
-                      'gaussian': ((d.fwhm, '.06'),),
-                      'trapezoid': ((d.rise, '.03'), (d.hold, '.10'), (d.fall, '.03'))}[shape]
-            for widget, value in ((d.start, '.04'), *timing, (d.amount, str(peak))):
+            d.normalization.setCurrentIndex(d.normalization.findData('peak'))
+            v = {**dict(start='.04', duration='.16', fwhm='.06', rise='.03', hold='.10', fall='.03'), **(values or {})}
+            timing = {'square': ((d.duration, v['duration']),),
+                      'gaussian': ((d.fwhm, v['fwhm']),),
+                      'trapezoid': ((d.rise, v['rise']), (d.hold, v['hold']), (d.fall, v['fall']))}[shape]
+            for widget, value in ((d.start, v['start']), *timing, (d.amount, str(peak))):
                 widget.setFocus()
                 widget.selectAll()
                 QTest.keyClicks(widget, value)
@@ -272,30 +277,35 @@ def test_pulse_reopening_and_unit_changes_preserve_parameters_without_expression
     app.processEvents()
 
 
-@pytest.mark.parametrize('filename,shape', [('source_designer_pulse_rz', 'square'),
-                                          ('source_designer_pulse_zy', 'gaussian')])
-def test_actual_2d_dialog_change_reaches_local_mesh_solver(editor, filename, shape):
+@pytest.mark.parametrize('filename,shape,unit,values', [
+    ('source_designer_pulse_rz', 'square', 'ps', dict(start='10', duration='30')),
+    ('source_designer_pulse_zy', 'gaussian', None, None)])
+def test_actual_2d_dialog_change_reaches_local_mesh_solver(editor, filename, shape, unit, values):
     app, w, path = editor
     template = Path(__file__).resolve().parents[1]/'examples'/(filename+'.pic.json')
     model = M.load(template)
     model['diagnostics']['output_dir'] = 'output'
+    if filename.endswith('_rz'):
+        model['parameters']['t_obs'] = '2*T_CL'          # shorter run for the test
     M.save(model, path)
     w.open_file(str(path))
     w.populate_tree(select=('emitters', 0))
     app.processEvents()
     form = w.scroll.widget().findChild(FieldForm)
-    apply_pulse_with_real_dialog(app, form, shape, 75)
+    apply_pulse_with_real_dialog(app, form, shape, 75, unit, values)
     w.run()
     wait_for(app, lambda: w.proc is None, timeout=300)
     directory = Path(w.output_dir())
     m = M.load(directory/'model.pic.json')
     assert m['emitters'][0]['pulse_builder']['shape'] == shape
-    p = build_pulse(m['emitters'][0]['pulse_builder'], M.evaluator(m))
+    ev = M.evaluator(m)
+    p = build_pulse(m['emitters'][0]['pulse_builder'], ev)
     hist = np.genfromtxt(directory/'history.csv', delimiter=',', names=True)
-    radius = M.evaluator(m).num('R')
+    radius = ev.num('R')
     area = np.pi*radius**2 if m['simulation']['geometry']=='2D-RZ' else radius
     q = np.sum(abs(hist['Iemit_pulsed_beam'][1:])*np.diff(hist['t']))
     assert q == pytest.approx(p['charge']*area, rel=.01)
     assert w.live.data is not None and w.results.res is not None
-    assert hist['step'][-1] == 1500
+    steps = round(ev.num(m['simulation']['t_end'])/ev.num(m['simulation']['dt']))
+    assert abs(hist['step'][-1] - steps) <= 1
     assert hist['N_electrons'][-1] == 0

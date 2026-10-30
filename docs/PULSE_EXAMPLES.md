@@ -10,7 +10,7 @@ it used earlier settings. Plots are replaced when the next run starts. A cancell
 | `source_designer_beam_1d.pic.json` | 1D z | Gaussian, FWHM 0.1 ns, ±3σ | Gaussian (flux), μ = v_b, σ = 200 km/s | 120 uniform cells |
 | `source_designer_square_1d.pic.json` | 1D z | Square, 0.3 ns | uniform-flux waterbag v_b ± 200 km/s | 120 uniform cells |
 | `source_designer_trapezoid_1d.pic.json` | 1D z | Trapezoid 0.06/0.18/0.06 ns | trapezoid on v_b ± 200 km/s, plateau 0.5 | 120 uniform cells |
-| `source_designer_pulse_rz.pic.json` | Axisymmetric z,r | Gaussian, FWHM 0.1 ns, ±3σ | Maxwellian flux, kT = 0.2 eV, thermal transverse | Local P1 triangles |
+| `source_designer_pulse_rz.pic.json` | Axisymmetric z,r | Square, k_p T_CL = 4.38 ps | cold (Heri–Zhang 2025 diode, R/d = 0.02944, Bz = 100 T, z-only motion) | structured, fine beam column r ≤ R |
 | `source_designer_pulse_zy.pic.json` | Cartesian z,y | Trapezoid 0.06/0.18/0.06 ns | waterbag v_b ± 200 km/s, transverse waterbag 200 km/s | Local P1 triangles |
 | `Gaussian_VD_Barrier.pic.json` | 1D z | constant 1e5 A/m² | Gaussian cut at 0 (as you set it) | 512 uniform cells |
 
@@ -21,8 +21,8 @@ current is prescribed by the **beam** emission model and the self-consistent spa
 solved; "vacuum" does not turn off the particles' own field.
 
 * **1D drifts:** 15 mm grounded gap, 1 keV electrons, peak 10 A/m², start 0.1 ns.
-* **RZ small disk:** emitter radius R = 0.1 mm at the cathode of a 10 mm, 10 kV gap; peak 1e4 A/m²
-  (below the planar Child–Langmuir value 2.3e4 A/m²); outer radius 20R (Neumann, absorbing).
+* **RZ small emitter (Heri–Zhang 2025 diode):** d = 1.5 mm, 30 kV, R = 44.16 µm (R/d = 0.02944), outer radius 3.2 d,
+  Bz = 100 T (z-only motion), square pulse 0.1 T_CL with Q/A = ε0 V0/d, observed 5 T_CL after the pulse.
 * **ZY sheet beam:** half-width R = 1.5 mm, 15 mm grounded gap, 1 keV, peak 100 A/m²; y = 0 is a
   symmetry plane, so the measured current is per unit depth for the half strip.
 * **Gaussian_VD_Barrier:** injection far above the space-charge limit of a 15 mm, 100 V gap
