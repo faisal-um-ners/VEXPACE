@@ -21,7 +21,14 @@ def _lbl(geometry):
 
 
 def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
-    """Draw the model set-up: domain, boundaries, objects, emitters, loaders, sources, probes."""
+    """Draw the model set-up: domain, boundaries, objects, emitters, loaders, sources, probes.
+
+    Emitters and probes are named in the legend (not with text in the plot), so labels never overlap
+    in small or crowded set-ups; the legend goes to the right of tall domains and below wide ones."""
+    _names = {}
+
+    def _mm(L):
+        return f"{L * 1e3:.3g} mm" if L >= 1e-4 else f"{L * 1e6:.3g} um"
     from matplotlib.patches import Polygon as MplPolygon, Rectangle
     from ..geometry.shapes import Shape
     from ..model.model import complete, evaluator
@@ -32,6 +39,7 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
     z0, z1 = ev.num(d["z_min"]), ev.num(d["z_max"])
     nz = int(ev.num(d["nz"]))
     ax.clear()
+    ax.set_aspect("auto")         # clear() keeps the aspect of the previous model (e.g. an equal-aspect 2D one)
     # Display padding outside the physical 2D domain; the interior patch retains its theme color.
     import matplotlib as mpl
     ax.set_facecolor("#f2f2f2" if geom != "1D-Z" else mpl.rcParams["axes.facecolor"])
@@ -126,11 +134,11 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
                         ax.axvspan(a, b, color="#2a78d6", alpha=0.08, zorder=0.5, lw=0)
                     elif g.dim == 2:
                         ax.axhspan(a, b, color="#2a78d6", alpha=0.08, zorder=0.5, lw=0)
-                note = f"{g.nz} x {g.ny} cells" if g.dim == 2 else f"{g.nz} cells"
-                if sz > 1 or sy > 1:
-                    note += "  (every %d-th line drawn; zoom in for all)" % max(sz, sy)
-            ax.text(0.99, 0.01, note, transform=ax.transAxes, ha="right", va="bottom", fontsize=7,
-                    color=col, zorder=20)
+                # the cell counts are in the panel header; only say so when lines are skipped
+                note = ("every %d-th mesh line drawn; zoom in for all" % max(sz, sy)) if (sz > 1 or sy > 1) else ""
+            if note:
+                ax.text(0.99, 0.01, note, transform=ax.transAxes, ha="right", va="bottom", fontsize=7,
+                        color=col, zorder=20)
         except Exception as exc:  # noqa: BLE001
             ax.text(0.5, 0.05, f"cannot build mesh: {exc}", transform=ax.transAxes, ha="center", fontsize=8)
     # boundaries
@@ -177,12 +185,10 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
                 ax.plot([ez0, ez1], [ey0, ey1], color="#d62728", lw=lw + 1.5, zorder=8, solid_capstyle="butt",
                         clip_on=False)
                 L = np.hypot(ez1 - ez0, ey1 - ey0)
+                _names.setdefault("emitter", []).append(f"{em.get('name', '')} ({_mm(L)})")
                 if L < 0.05 * max(z1 - z0, y1 - y0):      # small emitter: mark it so it is visible
                     ax.plot(0.5 * (ez0 + ez1), 0.5 * (ey0 + ey1), marker=">", color="#d62728", ms=9,
                             zorder=9, clip_on=False)
-                    ax.annotate(f"emitter {em.get('name', '')} ({L * 1e3:.3g} mm)",
-                                (0.5 * (ez0 + ez1), 0.5 * (ey0 + ey1)), xytext=(10, -12),
-                                textcoords="offset points", fontsize=7, color="#a01d1d", zorder=11)
         except Exception:  # noqa: BLE001
             pass
     # EM sources
@@ -200,8 +206,7 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
         try:
             pzz, pyy = ev.num(pr["z"]), (ev.num(pr["y"]) if geom != "1D-Z" else 0.5)
             ax.plot(pzz, pyy, "x", color="#ff7f0e", ms=8, mew=2, zorder=10)
-            ax.annotate(f"probe {pr.get('name', '')} ({pr.get('quantity', '')})", (pzz, pyy),
-                        xytext=(6, 6), textcoords="offset points", fontsize=7, color="#b35900", zorder=11)
+            _names.setdefault("point probe", []).append(f"{pr.get('name', '')} ({pr.get('quantity', '')})")
         except Exception:  # noqa: BLE001
             pass
     for pr in m.get("line_probes", []):
@@ -216,9 +221,8 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
             ax.plot([pz0, pz1], [py0, py1], color="#ff7f0e", lw=2, ls=(0, (3, 2)), zorder=10)
             ax.plot([pz0, pz1], [py0, py1], "|" if pr.get("along", "z") == "z" else "_", color="#ff7f0e",
                     ms=8, mew=2, zorder=10)
-            ax.annotate(f"line probe {pr.get('name', '')}: {pr.get('quantity', '')} {pr.get('extremum', 'min')}",
-                        (0.5 * (pz0 + pz1), 0.5 * (py0 + py1)), xytext=(0, 7), textcoords="offset points",
-                        fontsize=7, color="#b35900", ha="center", zorder=11)
+            _names.setdefault("line probe", []).append(
+                f"{pr.get('name', '')} ({pr.get('quantity', '')} {pr.get('extremum', 'min')})")
         except Exception:  # noqa: BLE001
             pass
     for pl in m["power_lines"]:
@@ -244,17 +248,31 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
             used.add(f)
             st = dict(BND_STYLE.get(f, {}))
             handles.append(Line2D([], [], label=f"{f} boundary", **st))
+    def _lab(kind, default):
+        items = _names.get(kind, [])
+        if not items:
+            return default
+        text = ", ".join(items[:3]) + (f" +{len(items) - 3}" if len(items) > 3 else "")
+        return f"{default}: {text}" if len(text) <= 42 else f"{default}: {text[:40]}…"
     if m["emitters"]:
-        handles.append(Line2D([], [], color="#d62728", lw=2.5, label="emitter"))
+        handles.append(Line2D([], [], color="#d62728", lw=2.5, label=_lab("emitter", "emitter")))
     if m["probes"]:
-        handles.append(Line2D([], [], ls="none", marker="x", color="#ff7f0e", mew=2, label="point probe"))
+        handles.append(Line2D([], [], ls="none", marker="x", color="#ff7f0e", mew=2,
+                              label=_lab("point probe", "point probe")))
     if m.get("line_probes"):
-        handles.append(Line2D([], [], color="#ff7f0e", lw=2, ls=(0, (3, 2)), label="line probe (min/max)"))
+        handles.append(Line2D([], [], color="#ff7f0e", lw=2, ls=(0, (3, 2)), label=_lab("line probe", "line probe")))
     if m["power_lines"]:
         handles.append(Line2D([], [], color="#17becf", lw=3, label="power monitor"))
+    fig_px = ax.figure.get_figwidth() * ax.figure.dpi
+    wide = geom == "1D-Z" or (z1 - z0) > 1.6 * max(y1 - y0, 1e-300) or fig_px < 760
     if handles:
-        ax.legend(handles=handles, fontsize=7, loc="upper left", bbox_to_anchor=(1.01, 1.0), borderaxespad=0,
-                  framealpha=0.9)
+        if wide:     # wide domain: legend in rows below the plot, so the domain keeps the full width
+            ax.legend(handles=handles, fontsize=7 if fig_px >= 500 else 6, loc="upper center",
+                      bbox_to_anchor=(0.5, -0.16), ncol=max(1, min(3, len(handles), int(fig_px // 260))),
+                      borderaxespad=0, framealpha=0.9)
+        else:        # tall or square domain: legend to the right
+            ax.legend(handles=handles, fontsize=7, loc="upper left", bbox_to_anchor=(1.01, 1.0),
+                      borderaxespad=0, framealpha=0.9)
     xl, yl = _lbl(geom)
     ax.set_xlabel(xl)
     ax.set_ylabel(yl if geom != "1D-Z" else "")
@@ -265,9 +283,12 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
     ax.set_ylim(y0 - padding * (y1 - y0), y1 + padding * (y1 - y0))
     if geom != "1D-Z":
         ratio = (z1 - z0) / max(y1 - y0, 1e-300)
-        ax.set_aspect("equal" if 0.25 < ratio < 4 else "auto", adjustable="box")
+        # true shape for near-square domains; very tall or wide ones fill the panel instead
+        ax.set_aspect("equal" if 0.5 < ratio < 2 else "auto", adjustable="box")
     ax.grid(False, which="both")          # geometry / mesh view: no axis grid (the mesh is drawn itself)
-    ax.set_title(f"{m.get('name', '')}  [{geom}, {m['simulation']['solver']}]", fontsize=9)
+    import textwrap
+    title = f"{m.get('name', '')}  [{geom}, {m['simulation']['solver']}]"
+    ax.set_title("\n".join(textwrap.wrap(title, max(24, int(fig_px / 7.5)))), fontsize=9)
 
 
 def field_names(fdata):

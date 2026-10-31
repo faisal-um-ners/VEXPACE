@@ -363,14 +363,13 @@ class LivePanel(QWidget):
         return out
 
     def _overlay_lines(self, a, d):
-        """Dashed line + name of every line probe on the 2D field map."""
+        """Dashed line of every line probe on the 2D field map (names are shown in the Geometry tab)."""
         for name, f in self._line_meta(d).items():
             try:
                 z0, y0, z1, y1 = (float(v) for v in f[3:7])
             except ValueError:
                 continue
-            a.plot([z0, z1], [y0, y1], color="white", lw=1.4, ls=(0, (4, 2)), alpha=0.9)
-            a.annotate(name, (z1, y1), xytext=(3, 3), textcoords="offset points", fontsize=7, color="white")
+            a.plot([z0, z1], [y0, y1], color="white", lw=1.2, ls=(0, (4, 2)), alpha=0.8)
 
     def _line_plot(self, a, d, name):
         """Profile of a line probe with its minimum / maximum marked and labelled."""
