@@ -133,7 +133,7 @@ def matplotlib_rc(name="light"):
     return ({
         "figure.facecolor": c["panel"], "axes.facecolor": c["plot_bg"], "savefig.facecolor": c["plot_bg"],
         "axes.edgecolor": c["grid"], "axes.labelcolor": c["plot_text2"], "axes.titlecolor": c["plot_text"],
-        "axes.titlesize": 9.5, "axes.titleweight": "bold", "axes.labelsize": 9, "axes.grid": True,
+        "axes.titlesize": 9.5, "axes.titleweight": "bold", "axes.labelsize": 9, "axes.grid": True, "axes.axisbelow": True,
         "grid.color": c["grid"], "grid.linewidth": 0.7, "grid.alpha": 1.0,
         "xtick.color": c["plot_text2"], "ytick.color": c["plot_text2"], "xtick.labelsize": 8,
         "ytick.labelsize": 8, "legend.fontsize": 8, "legend.frameon": True,
