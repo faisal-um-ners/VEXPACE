@@ -197,7 +197,12 @@ def render_snapshot(spec, opts, dpi):
             ax.grid(True, alpha=.35, linewidth=.6)
         else:
             ax.grid(False)
+        # Set-up drawings (the geometry view) are exported as drawn: their line widths, markers
+        # and proxy legend are not data series and are not restyled.
+        as_is = getattr(fig, "_export_as_is", False)
         for se, old, (kind, index) in zip(meta.series, meta._source_series, meta._artist_bindings):
+            if as_is:
+                break
             if kind == "line":
                 line = ax.lines[index]
                 original_color = _hex(line.get_color())
@@ -236,7 +241,11 @@ def render_snapshot(spec, opts, dpi):
         if meta.image is not None:
             for kind, index, scale in meta._image_bindings:
                 im = ax.images[index] if kind == "image" else ax.collections[index]
-                im.set_cmap(meta.image.cmap)
+                cm = meta.image.cmap
+                # custom maps of the source plot (e.g. the painted-cell map of the geometry view,
+                # named 'from_list') are kept; only a registered map chosen in the dialog replaces it
+                if cm and cm in matplotlib.colormaps and cm != im.get_cmap().name:
+                    im.set_cmap(cm)
                 cb = getattr(im, "colorbar", None)
                 if cb is not None:
                     cb.set_label(meta.image.clabel or "", fontsize=opts.font_size)
@@ -244,6 +253,13 @@ def render_snapshot(spec, opts, dpi):
                     cb.formatter = cb.ax.yaxis.get_major_formatter()
                     cb.update_ticks()
         legend = ax.get_legend()
+        if as_is and legend is not None:
+            if not meta.legend:
+                legend.remove()
+            else:
+                for text in legend.get_texts():
+                    _font(text, opts.font_size*opts.legend_scale, rc["text.color"])
+            continue
         if legend is not None:
             old_handles = getattr(legend, "legend_handles", getattr(legend, "legendHandles", []))
             old_text = [t.get_text() for t in legend.get_texts()]

@@ -143,6 +143,7 @@ class MainWindow(QMainWindow):
         gh.addWidget(self.geo_info)
         gv.addLayout(gh, 0)
         self.geo_plot = PlotWidget()
+        self.geo_plot.fig._export_as_is = True     # export the set-up drawing as drawn (no series restyling)
         gv.addWidget(self.geo_plot, 1)
         self.tabs.addTab(geo, "Geometry")
         self.live = LivePanel()

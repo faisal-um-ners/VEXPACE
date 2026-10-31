@@ -114,7 +114,7 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
                 for region in mesh.regions:
                     ax.add_patch(MplPolygon(region.points, closed=True, fc="#2a78d6", ec="#2a78d6",
                                             alpha=0.12, lw=1, zorder=2))
-                note = f"{len(mesh.points):,} nodes, {len(mesh.triangles):,} triangles (fixed local mesh)"
+                note = ""            # node / triangle counts are shown in the panel header
             else:
                 # thin out only if there are far more lines than pixels (zoom in to see all of them)
                 sz = max(1, len(zs) // 600)
@@ -268,7 +268,7 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
     if handles:
         if wide:     # wide domain: legend in rows below the plot, so the domain keeps the full width
             ax.legend(handles=handles, fontsize=7 if fig_px >= 500 else 6, loc="upper center",
-                      bbox_to_anchor=(0.5, -0.16), ncol=max(1, min(3, len(handles), int(fig_px // 260))),
+                      bbox_to_anchor=(0.5, -0.2), ncol=max(1, min(3, len(handles), int(fig_px // 260))),
                       borderaxespad=0, framealpha=0.9)
         else:        # tall or square domain: legend to the right
             ax.legend(handles=handles, fontsize=7, loc="upper left", bbox_to_anchor=(1.01, 1.0),
