@@ -888,8 +888,14 @@ class ExportDialog(QDialog):
         f.addRow("Gap to text", self.lg_gap)
         f.addRow("Row spacing", self.lg_rows)
         f.addRow("", self.lg_frame)
-        f.addRow("", label("The text of each entry, its colour and line style are set in the Lines tab.", "hint",
-                           wrap=True))
+        self.lg_entries = QWidget()
+        self.lg_entries_lay = QFormLayout(self.lg_entries)
+        self.lg_entries_lay.setContentsMargins(0, 0, 0, 0)
+        f.addRow(label("Entries", "hint"), QLabel(""))
+        f.addRow(self.lg_entries)
+        f.addRow("", label("Edit the text of each entry here or in the Lines tab (LaTeX math allowed, e.g. "
+                           "$I_\\mathrm{anode}$; leave empty to hide an entry). Colour and line style are set in "
+                           "the Lines tab.", "hint", wrap=True))
         self.lg_show.toggled.connect(self._panel_edited)
         self.lg_pos.currentIndexChanged.connect(self._schedule)
         self.lg_ncol.valueChanged.connect(self._schedule)
@@ -961,6 +967,32 @@ class ExportDialog(QDialog):
             msize.valueChanged.connect(self._curves_edited)
             self.curves_lay.addWidget(card)
             self.curve_w.append(dict(color=col, text=text, style=style, width=width, marker=marker, msize=msize))
+        self._build_legend_entries()
+
+    def _build_legend_entries(self):
+        """One editable text per curve in the Legend tab, kept in step with the Lines tab."""
+        lay = self.lg_entries_lay
+        while lay.count():
+            wd = lay.takeAt(0).widget()
+            if wd is not None:
+                wd.hide()
+                wd.setParent(None)
+                wd.deleteLater()
+        for k, wd in enumerate(self.curve_w):
+            e = QLineEdit(wd["text"].text())
+            e.setPlaceholderText("(not in legend)")
+            sw = QLabel("━━")
+            sw.setStyleSheet(f"color: {getattr(wd['color'], 'color', '#888888')};")
+            src = wd["text"]
+            e.textEdited.connect(src.setText)               # -> Lines tab -> stored and redrawn
+
+            def follow(text, e=e):
+                if e.text() != text:
+                    e.blockSignals(True)
+                    e.setText(text)
+                    e.blockSignals(False)
+            src.textChanged.connect(follow)
+            lay.addRow(sw, e)
 
     def _curves_edited(self, *_):
         if self._loading:
