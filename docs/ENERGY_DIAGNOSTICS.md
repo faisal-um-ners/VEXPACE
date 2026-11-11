@@ -63,6 +63,11 @@ The app starts light and keeps its theme toggle. The four Live monitor subplots
 retain their dark backgrounds. Figure exports always use white backgrounds,
 including exported Live monitor plots, geometry vacuum patches and legend frames.
 
+Ordinary geometry-object `I_`/`V_` histories are separately opt-in under
+**Geometry Objects → Record current (I) / Record voltage (V)**. Enable them for
+the electrodes you want to analyze. They do not gate energy-impact accounting;
+see [Optional geometry-object histories](OBJECT_HISTORY.md).
+
 `<output>/energy_diagnostics/` contains:
 
 - `metadata.json` and `dc_reference.npz`: definitions, signs, units, surfaces,

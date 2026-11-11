@@ -206,6 +206,14 @@ OBJECT = [
     Field("material", "choice", "conductor", "Material", choices=MATERIALS,
           help="Objects are painted in list order; 'vacuum' carves holes in earlier objects."),
     Field("voltage", "expr", "0", "Voltage V(t)", "V", show_if={"material": ["conductor"]}),
+    Field("record_current", "bool", False, "Record current (I)",
+          show_if={"material": ["conductor", "dielectric", "absorber"]},
+          help="Save this object's collected current in history and show I_<name> in History signals. "
+               "Off skips this object's current-history accounting; particle absorption and dielectric charging are unchanged."),
+    Field("record_voltage", "bool", False, "Record voltage (V)",
+          show_if={"material": ["conductor"]},
+          help="Save this object's prescribed voltage in history and show V_<name> in History signals. "
+               "Off affects recording only: Voltage V(t) still drives the conductor normally."),
     Field("eps_r", "expr", "1", "Relative permittivity", "", show_if={"material": ["dielectric"]}),
     Field("loss_spec", "choice", "Q", "Loss specified by", choices=("Q", "conductivity"),
           show_if={"material": ["lossy"]},

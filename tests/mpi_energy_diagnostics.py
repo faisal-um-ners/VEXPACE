@@ -46,6 +46,18 @@ def check():
     np.testing.assert_allclose(h['ED_U_electric'],s.energy_diag.field_energy()[0],rtol=1e-14)
     assert abs(h['ED_R_particle'])<1e-29
     s.energy_diag.close()
+    # Only the enabled object's compact current accumulator is MPI-reduced.
+    m=model(False)
+    m['objects']=[dict(name=f'object{i}',shape='rectangle',material='conductor',
+                       z0='.0006',z1='.0007',y0='.0002',y1='.0008',
+                       record_current=i==1,record_voltage=i==1) for i in range(3)]
+    s=Simulation(m,write_output=False,log=lambda _:None);sp=s.species[0]
+    a=np.ones(3);sp.add(a*.0005,a*.0005,a*0,a*0,a*0,np.array([1.,2.,3.])*(s.rank+1))
+    s._account(sp,np.array([10,11,12],dtype=np.int32));s.t=s.dt
+    cols=s.history_columns();row=s.history_row()
+    assert 'I_object0' not in cols and 'V_object2' not in cols
+    assert s.coll_obj.size==1 and len(cols)==len(row)==len(s.history_units())
+    np.testing.assert_allclose(row[cols.index('I_object1')],sp.q*6/s.dt,rtol=1e-14)
     if s.rank==0:print('Passed: empty-rank current updates, unique IDs, global impact energy and replicated-field accounting.')
 
 

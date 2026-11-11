@@ -133,9 +133,15 @@ class Simulation:
         self.ext = ExternalFields(m["external_fields"], g, ev)
         self.has_obj = bool((self.mats.cell_obj >= 0).any())
         self.obj_names = [o.get("name", f"obj{i}") for i, o in enumerate(m["objects"])]
-        # objects that collect particles (vacuum / lossy regions never do -> no always-zero columns)
+        # Object histories are opt-in; these flags never affect material physics.
         self.obj_cur = [i for i, o in enumerate(m["objects"])
-                        if o.get("material", "conductor") in ("conductor", "dielectric", "absorber")]
+                        if o.get("record_current", False)
+                        and o.get("material", "conductor") in ("conductor", "dielectric", "absorber")]
+        self.obj_cur_slot = np.full(len(m["objects"]), -1, dtype=int)
+        self.obj_cur_slot[self.obj_cur] = np.arange(len(self.obj_cur))
+        self.voltage_history = [i for i, cnd in enumerate(self.mats.conductors)
+                                if cnd['source'] == 'boundary'
+                                or m['objects'][cnd['object']].get('record_voltage', False)]
         self.obj_mat = [o.get("material", "conductor") for o in m["objects"]]
         self.obj_collect = [bool(o.get("collect_charge", True)) for o in m["objects"]]
         self.rng = np.random.default_rng(int(sim.get("seed", 12345)) + 7919 * self.rank)
@@ -247,7 +253,7 @@ class Simulation:
         self.out_dir = out_dir
         self.out = Output(out_dir, enabled=write_output and self.rank == 0)
         self.coll_side = np.zeros(5)
-        self.coll_obj = np.zeros(max(1, len(m["objects"])))
+        self.coll_obj = np.zeros(len(self.obj_cur))
         self.emit_acc = np.zeros(max(1, len(self.emitters)))
         self.hist_t0 = 0.0
         self.history_rows = []
@@ -627,7 +633,11 @@ class Simulation:
         obj = ~side
         if obj.any():
             k = f[obj] - 10
-            self.coll_obj += np.bincount(k, weights=qw[obj], minlength=len(self.coll_obj))[:len(self.coll_obj)]
+            slots = self.obj_cur_slot[k]
+            enabled = slots >= 0
+            if enabled.any():
+                self.coll_obj += np.bincount(slots[enabled], weights=qw[obj][enabled],
+                                             minlength=len(self.coll_obj))
             if not self.em:
                 # charge stays on dielectric surfaces
                 for oi in np.unique(k):
@@ -891,7 +901,7 @@ class Simulation:
                  for s in self._current_sides()]
         cols += [f"I_{self.obj_names[i]}".replace(" ", "_") for i in self.obj_cur]
         cols += [f"Iemit_{e.name}".replace(" ", "_") for e in self.emitters]
-        cols += [f"V_{c_['name']}".replace(" ", "_") for c_ in self.mats.conductors]
+        cols += [f"V_{self.mats.conductors[i]['name']}".replace(" ", "_") for i in self.voltage_history]
         cols += [f"probe_{p[0]}" for p in self.probes]
         for p in self.line_probes:
             cols += self._line_cols(p)
@@ -1073,13 +1083,14 @@ class Simulation:
         row.append(self.field_energy())
         dtint = max(self.t - self.hist_t0, 1e-300)
         cs = self.comm.allreduce(self.coll_side.copy()) if self.size > 1 else self.coll_side
-        co = self.comm.allreduce(self.coll_obj.copy()) if self.size > 1 else self.coll_obj
+        co = (self.comm.allreduce(self.coll_obj.copy()) if self.size > 1 else self.coll_obj) if self.obj_cur else None
         ea = self.comm.allreduce(self.emit_acc.copy()) if self.size > 1 else self.emit_acc
         allsides = ("z_min", "z_max", "y_min", "y_max")
         row += [cs[1 + allsides.index(sd)] / dtint for sd in self._current_sides()]
-        row += [co[i] / dtint for i in self.obj_cur]
+        if self.obj_cur:
+            row += list(co / dtint)
         row += list(ea[:len(self.emitters)] / dtint)
-        row += self.voltages(self.t)
+        row += [self.vfuncs[i](self.t) for i in self.voltage_history]
         row += [self._probe(q, z, y) for (_, q, z, y) in self.probes]
         for lp in self.line_probes:
             row += self._line_probe(lp)
