@@ -176,6 +176,40 @@ def validate(model: dict) -> list[tuple[str, str]]:
         return [("error", f"Parameters: {exc}")]
     sim, dom = m["simulation"], m["domain"]
     geom, solver = sim["geometry"], sim["solver"]
+    if solver == "electromagnetic":
+        mode = str(sim.get("em_conductors", "held at their potentials"))
+        choices = ("held at their potentials", "floating", "rf-compatible dc bias", "pec only")
+        if mode not in choices:
+            msgs.append(("error", f"Unsupported EM conductor/bias model: {mode!r}"))
+        voltage_specs = [
+            (f"Boundary {side}", data.get("voltage", "0"))
+            for side, data in m["boundaries"].items()
+            if data.get("field") == "conductor"
+        ] + [
+            (f"Object {obj.get('name', '<unnamed>')}", obj.get("voltage", "0"))
+            for obj in m.get("objects", [])
+            if obj.get("material", "conductor") == "conductor"
+        ]
+        if mode == "rf-compatible dc bias":
+            for label, expr in voltage_specs:
+                try:
+                    if ev.is_time_dependent(expr):
+                        msgs.append(("error", f"{label}: static DC bias + unconstrained RF requires "
+                                              "a time-independent conductor voltage. Use a wave source "
+                                              "or a validated circuit model for time-dependent drive."))
+                except Exception as exc:  # noqa: BLE001
+                    msgs.append(("error", f"{label} voltage: {exc}"))
+        elif mode == "pec only" and voltage_specs:
+            msgs.append(("info", "PEC-only electromagnetic mode ignores configured electrode "
+                                  "voltages (but retains PEC geometry and particle absorption)."))
+        elif mode == "held at their potentials":
+            msgs.append(("info", "Ideal EM voltage clamp removes floating-potential components "
+                                  "after every Yee update; it may suppress RF modes involving "
+                                  "voltage differences across conductors."))
+        elif mode == "floating":
+            msgs.append(("info", "Legacy floating EM mode disables the Yee voltage clamp but "
+                                  "continues to superpose configured electrode voltages on particles. "
+                                  "It is not a self-consistent isolated-electrode circuit model."))
 
     def num(sec, key, val):
         try:

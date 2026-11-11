@@ -64,6 +64,14 @@ class Simulation:
         sim, dom = m["simulation"], m["domain"]
         self.geometry = sim["geometry"]
         self.em = sim["solver"] == "electromagnetic"
+        # This is a global EM field/circuit choice, independent of device geometry.
+        # Preserve the legacy held/floating behavior for existing project files.
+        self.em_conductors = str(sim.get("em_conductors", "held at their potentials"))
+        allowed_em_conductors = {
+            "held at their potentials", "floating", "rf-compatible dc bias", "pec only"
+        }
+        if self.em and self.em_conductors not in allowed_em_conductors:
+            raise ValueError(f"Unsupported EM conductor/bias model: {self.em_conductors!r}")
         self.rel = bool(sim["relativistic"])
         self.smooth = int(sim.get("smoothing", 0) or 0)
         self.j_filter = int(sim.get("current_filter", 0) or 0)
@@ -95,6 +103,11 @@ class Simulation:
         self.sp_by_name = {s.name: s for s in self.species}
         self.vfuncs = [ev.func_t(cnd["voltage"]) for cnd in self.mats.conductors]
         self.v_td = any(ev.is_time_dependent(cnd["voltage"]) for cnd in self.mats.conductors)
+        if self.em and self.em_conductors == "rf-compatible dc bias" and self.v_td:
+            raise ValueError(
+                "Static DC bias + unconstrained RF requires time-independent electrode voltages. "
+                "Use an explicit electromagnetic source or a validated circuit model for time-dependent bias."
+            )
         self.log(g.info())
         t0 = time.time()
         self.local_es = None
@@ -189,7 +202,7 @@ class Simulation:
             self._smooth_mask = (self.mats.node_cond < 0).astype(float)
             self._per_axes = tuple(a for a, p in ((0, self.pz), (1, self.py)) if p)
             self.circuit = None
-            if str(sim.get("em_conductors", "held")).startswith("held") and self.mats.conductors:
+            if self.em_conductors == "held at their potentials" and self.mats.conductors:
                 from ..fields.circuit import ConductorCircuit
                 self.circuit = ConductorCircuit(self.yee, g, self.mats, self.pz, self.py)
                 if not self.circuit.active:
@@ -420,7 +433,11 @@ class Simulation:
                     + self.F[c_] * (1 - m)
         Fy = self.F[:2].copy() if self.emitters else None
         F_yee = self.F.copy() if self.gather_ec else None
-        if self.vfuncs:
+        # PEC-only keeps the Maxwell field and its PEC masks, but deliberately
+        # ignores electrode voltage expressions. All other modes preserve the
+        # prescribed Laplace field seen by particles; only the legacy "held"
+        # mode additionally clamps the evolving Yee field after each step.
+        if self.vfuncs and (not self.em or self.em_conductors != "pec only"):
             V = self.voltages(t)
             if any(v != 0 for v in V):
                 if self.static_E is None or self.v_td:
@@ -817,7 +834,7 @@ class Simulation:
             yee.full_E(dt, self.axis_factor)
         yee.half_B(dt)
         if self.circuit is not None:
-            self.circuit.apply()          # ideal voltage sources: conductors held at their potentials
+            self.circuit.apply()          # legacy ideal zero-impedance voltage clamp
         self._em_fields(t + dt)
         self.timers["field"] += time.perf_counter() - tf
 
