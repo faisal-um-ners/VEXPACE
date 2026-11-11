@@ -1,0 +1,45 @@
+name: Compare GUI RZ regression on main and EM branch
+
+on:
+  push:
+    branches:
+      - feature/em-conductor-modes-20261111
+  workflow_dispatch:
+
+jobs:
+  compare:
+    name: Isolated RZ GUI test on ${{ matrix.ref_name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ref_name: main
+            sha_ref: 1f46ebe97b32c4267413bffcd503812f5bac472c
+          - ref_name: em-conductor-feature
+            sha_ref: 16880c95d0ae9fb455b9d4aee23d34aa40e12195
+    env:
+      QT_QPA_PLATFORM: offscreen
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '2'
+      NUMBA_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.sha_ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install Qt system libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libegl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install project + test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . pytest PySide6
+      - name: Run previously failing RZ GUI test in isolation
+        run: |
+          python -m pytest -vv -s tests/test_gui_rerun.py -k "test_actual_2d_dialog_change_reaches_local_mesh_solver and source_designer_pulse_rz"
