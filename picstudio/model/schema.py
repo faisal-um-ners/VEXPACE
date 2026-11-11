@@ -71,12 +71,25 @@ SIMULATION = [
     Field("smoothing", "int", 0, "Binomial smoothing passes", "",
           help="1-2-1 filter passes. ES: applied to the charge density.  EM: applied to the fields "
                "gathered by the particles (keeps the current deposition charge conserving)."),
-    Field("em_conductors", "choice", "held at their potentials", "Conductors (EM)",
-          choices=("held at their potentials", "floating"),
-          help="held: every conductor is connected to an ideal voltage source, so its potential stays at "
-               "the set voltage while current flows (diodes, magnetrons, guns).  floating: isolated PEC "
-               "conductors whose charge only changes by absorbed / emitted particles (their potential "
-               "drifts as the gap discharges)."),
+    Field("em_conductors", "choice", "held at their potentials", "EM conductor / bias model",
+          choices=("held at their potentials", "floating", "rf-compatible dc bias", "pec only"),
+          choice_labels={
+              "held at their potentials": "Ideal voltage clamp (legacy)",
+              "floating": "Unclamped + prescribed bias (legacy floating)",
+              "rf-compatible dc bias": "Static DC bias + unconstrained RF",
+              "pec only": "PEC only (no imposed bias)",
+          },
+          show_if={"solver": ["electromagnetic"]},
+          help="All modes enforce the same PEC boundary masks for the Yee solver. "
+               "Ideal voltage clamp: subtracts the conductor's induced potential after every EM step; "
+               "this represents independent zero-impedance supplies and can suppress RF/TEM modes. "
+               "Legacy floating: does not clamp the Yee field, but still superposes configured electrode "
+               "voltages on particle fields, including nonzero or time-dependent values. "
+               "Static DC bias + unconstrained RF: adds only time-independent electrode Laplace fields "
+               "to particle forces without clamping dynamic RF; this is NOT a self-consistent finite-impedance "
+               "supply or floating-electrode model. "
+               "PEC only: advances the Yee field with PEC boundaries and ignores configured electrode voltages. "
+               "For a physical external circuit or time-dependent electrode drive, use a validated circuit model."),
     Field("current_filter", "int", 0, "Current filter passes (EM)", "",
           help="WarpX-style bilinear 1-2-1 filter of the deposited current J, this many passes along every "
                "axis before the field update (WarpX warpx.use_filter, default 1 pass in Cartesian WarpX).  "
