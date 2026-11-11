@@ -7,8 +7,9 @@ live monitor, saved results, pulse previews, and velocity previews.
 The window uses the PASCHEN Studio exporter at commit
 `ced9e63f38abaaf591e85998f2e6d26eb1f36a63`, with its original controls and defaults:
 
-- **Output:** PNG, PDF, SVG, EPS or TIFF; publication, presentation or screen
-  appearance; size presets, width, height and resolution.
+- **Output:** PNG, PDF, SVG, EPS or TIFF; white publication appearance;
+  size presets, width, height and resolution. Exports stay white with either
+  application theme, including geometry vacuum regions and legend frames.
 - **Text:** fonts, math/LaTeX support, font and line sizes, ticks and grid.
 - **Axes:** panel selection, titles, labels, scales, ranges, ticks, and colour
   map/bar labels where the plot has a colour map.

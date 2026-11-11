@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QHBoxLayout, Q
 
 from ..post import plotting as P
 from ..post.reader import Results, species_names
+from ..diagnostics.signals import signal_label, signal_unit
 from .canvas import PlotWidget
 
 
@@ -146,17 +147,22 @@ class LivePanel(QWidget):
             bar.addWidget(w)
         bar.addStretch()
         lay.addLayout(bar, 0)
-        self.plot = PlotWidget(nrows=2, ncols=2, style="dark")   # dark in both themes
+        self.plot = PlotWidget(nrows=2, ncols=2, style="dark")  # live subplots retain their dark background
         lay.addWidget(self.plot, 1)
         self.data = None
         self.checked = set()
         self.sig_names = []
+        self.energy_status = QLabel()
+        self.energy_status.setWordWrap(True)
+        self.energy_status.hide()
+        lay.addWidget(self.energy_status)
         self.reset()
         for w in (self.qty, self.phx, self.phy):
             w.currentTextChanged.connect(lambda *_: self.redraw())
         self.fft_chk.toggled.connect(lambda *_: self.redraw())
 
     def reset(self):
+        self.energy_status.hide()
         self.model_notice.clear()
         self.model_notice.hide()
         self.env = {}
@@ -208,7 +214,9 @@ class LivePanel(QWidget):
             self.checked = set(probes[:1] if probes else pref) or set(names[:1])
         self.sig_menu.clear()
         for c in names:
-            act = self.sig_menu.addAction(c)
+            unit = signal_unit(c)
+            act = self.sig_menu.addAction(signal_label(c)+(f' [{unit}]' if unit else ''))
+            act.setToolTip(c)
             act.setCheckable(True)
             act.setChecked(c in self.checked)
             act.toggled.connect(lambda on, c=c: self._toggle_sig(c, on))
@@ -221,6 +229,15 @@ class LivePanel(QWidget):
     def update_from(self, d):
         if d is None:
             return
+        ed_cols = [str(c) for c in d.get('history_columns', [])]
+        if 'ED_reference_ready' in ed_cols and np.size(d.get('history_tail', d.get('history', []))):
+            ed_h = np.asarray(d.get('history_tail', d.get('history')))
+            ed_row = ed_h[-1]
+            ready = ed_row[ed_cols.index('ED_reference_ready')] > .5
+            self.energy_status.setText('Energy diagnostics: '+('measuring DC/RF work against the frozen mean-field reference. Select ED_ signals in History.' if ready else 'collecting the mean-field reference; DC/RF signals remain unavailable until it is ready.'))
+            self.energy_status.show()
+        else:
+            self.energy_status.hide()
         prog = d.get("progress")
         if self.data is not None and prog is not None and self.data.get("progress") is not None:
             if int(prog[0]) < int(self.data["progress"][0]):      # a new run started
@@ -238,7 +255,7 @@ class LivePanel(QWidget):
         self.redraw()
 
     def redraw(self):
-        with self.plot.style_context():         # the live monitor keeps its dark style
+        with self.plot.style_context():
             self._redraw()
 
     def _redraw(self):
@@ -456,7 +473,7 @@ class LivePanel(QWidget):
             e.update(v[late] if late.any() else v)
             # Current at t[i] is charge / time over (t[i-1], t[i]].
             # Joining these averages diagonally invents ramps on short pulses.
-            a.plot(t, v, lw=1.2, label=k,
+            a.plot(t, v, lw=1.2, label=signal_label(k),
                    drawstyle="steps-pre" if k.startswith(("I_", "Iemit_")) else "default")
         a.set_xlim(0.0, t_end if t_end > 0 else (t[-1] or 1.0))
         lim = e.limits(0.08)
@@ -662,6 +679,8 @@ class ResultsPanel(QWidget):
             if c in ("step", "t"):
                 continue
             it = QListWidgetItem(c)
+            unit = signal_unit(c)
+            it.setToolTip(signal_label(c)+(f' [{unit}]' if unit else ''))
             it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
             on = c in checked or (not checked and c.startswith("I_"))
             it.setCheckState(Qt.Checked if on else Qt.Unchecked)
@@ -722,7 +741,8 @@ class ResultsPanel(QWidget):
                     P.plot_beam(axs, p, sp, self.res.geometry)
             elif kind == "History":
                 H, cols = self.res.history()
-                P.plot_history(ax, H, cols, self._checked(), self.logy.isChecked())
+                P.plot_history(ax, H, cols, self._checked(), self.logy.isChecked(),
+                               units=self.res.info.get('history_units', {}))
             elif kind == "Spectrum (FFT)":
                 H, cols = self.res.history()
                 ch = self._checked()
@@ -740,7 +760,9 @@ class ResultsPanel(QWidget):
                 unit_axes(ax, PHASE_UNITS.get(xv, ""), PHASE_UNITS.get(yv, ""), xlabel=_rzname(xv, rz),
                           ylabel=_rzname(yv, rz))
             elif kind == "History":
-                _eng(ax, "s", "")
+                units = self.res.info.get('history_units', {})
+                selected = {units.get(k, '') for k in self._checked()}
+                _eng(ax, "s", selected.pop() if len(selected) == 1 else "")
         except Exception as exc:  # noqa: BLE001
             ax.set_title(f"plot error: {exc}", fontsize=8)
         self.plot.draw()

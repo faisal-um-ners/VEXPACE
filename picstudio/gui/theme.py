@@ -14,7 +14,7 @@ THEMES = {
         window="#eef1f5", panel="#ffffff", panel2="#f6f8fb", border="#d5dbe3", text="#1d2733",
         text2="#5a6676", accent="#2a6fd6", accent2="#1f5bb5", accent_soft="#dbe8fb",
         header1="#1e2b3c", header2="#2c3e55", header_text="#ffffff", select="#2a6fd6",
-        select_text="#ffffff", input="#ffffff", handle="#c9d2dd", plot_bg="#fcfcfb",
+        select_text="#ffffff", input="#ffffff", handle="#c9d2dd", plot_bg="#ffffff",
         plot_text="#0b0b0b", plot_text2="#52514e", grid="#e3e6ea", series=SERIES_LIGHT),
     "dark": dict(
         window="#15191f", panel="#1d232b", panel2="#222a33", border="#323c48", text="#e6eaf0",

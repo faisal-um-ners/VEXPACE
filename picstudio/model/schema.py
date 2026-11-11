@@ -493,6 +493,22 @@ DIAGNOSTICS = [
     Field("particle_every", "expr", "200", "Particle snapshot every N steps"),
     Field("max_dump_particles", "expr", "50000", "Max particles per snapshot"),
     Field("live_every", "expr", "50", "Live plot update every N steps"),
+    Field("energy_enabled", "bool", False, "Energy conversion diagnostics",
+          help="Passive measurements for 2D-ZY electromagnetic Boris/full-motion runs. Adds work, "
+               "load loss, electrode impact energy and selected particle histories without changing forces."),
+    Field("energy_start", "expr", "0", "Mean-field reference starts at", "s", show_if={"energy_enabled":[True]},
+          help="Choose a time after the mode settles. Fields continue evolving normally."),
+    Field("energy_reference_time", "expr", "10e-9", "Mean-field reference duration", "s", show_if={"energy_enabled":[True]}),
+    Field("energy_block_time", "expr", "5e-9", "Grid work averaging block", "s", show_if={"energy_enabled":[True]}),
+    Field("energy_track_every", "expr", "20", "Tracked-particle write interval (steps)", show_if={"energy_enabled":[True]}),
+    Field("energy_track_stride", "expr", "100", "Track one particle ID in every", show_if={"energy_enabled":[True]},
+          help="Deterministic selection per rank, independent of the solver random generator. 1 tracks every particle."),
+    Field("energy_hub_y", "expr", "", "Optional hub-reference y", "m", show_if={"energy_enabled":[True]},
+          help="Empty disables hub crossings. A plane inside the domain records selected trajectories crossing either way."),
+    Field("energy_hist_bins", "expr", "64", "Impact-energy histogram bins", show_if={"energy_enabled":[True]}),
+    Field("energy_hist_max_eV", "expr", "100e3", "Impact histogram upper energy", "eV", show_if={"energy_enabled":[True]},
+          help="Higher-energy impacts are retained in a separate overflow bin."),
+    Field("energy_save_work_grids", "bool", False, "Save block-mean E and J grids", show_if={"energy_enabled":[True]}),
 ]
 
 PARALLEL = [

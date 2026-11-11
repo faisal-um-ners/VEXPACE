@@ -55,6 +55,10 @@ class Simulation:
     def __init__(self, model, out_dir=None, comm=None, log=None, write_output=True,
                  base_dir=None):
         self.model = m = complete(model)
+        if m['diagnostics'].get('energy_enabled', False):
+            # Reject unsupported diagnostics before Output can touch a folder.
+            from ..diagnostics.energy import EnergyDiagnostics
+            EnergyDiagnostics.validate(m)
         self.ev = ev = evaluator(m)
         self.log_fn = log
         self.comm = comm if comm is not None else get_comm(m["parallel"]["mode"])
@@ -249,6 +253,10 @@ class Simulation:
         self.history_rows = []
         self.timers = {"push": 0.0, "deposit": 0.0, "field": 0.0, "emit": 0.0, "diag": 0.0}
         self._initial_fields()
+        self.energy_diag = None
+        if d.get('energy_enabled', False):
+            from ..diagnostics.energy import EnergyDiagnostics
+            self.energy_diag = EnergyDiagnostics(self, write_output=write_output)
 
     # ==========================================================================
     def log(self, msg):
@@ -540,6 +548,11 @@ class Simulation:
             u2[:] = 0.0
             z_old = z.copy()
         P = self._gather(sp)
+        diag = self.energy_diag
+        if diag is not None:
+            old_u = np.array([sp.u0, sp.u1, sp.u2])
+            old_z, old_y = sp.z.copy(), sp.y.copy()
+            reference, applied = diag.gather_reference(sp), diag.applied_at(sp)
         if g.dim == 1:
             K.push_fields_1d(z, u0, u1, u2, sp.n, P, sp.qm, self.dt, self.hand, self.ic2, self.pusher, True)
         else:
@@ -554,6 +567,8 @@ class Simulation:
             u0[:] = 0.0
             u2[:] = 0.0
             z[:] = z_old
+        if diag is not None:
+            diag.pushed(sp, old_u, old_z, old_y, P, reference, applied)
 
     def _boundaries(self, sp, wrap=True):
         g = self.grid
@@ -599,6 +614,8 @@ class Simulation:
         return flag
 
     def _account(self, sp, flag):
+        if self.energy_diag is not None:
+            self.energy_diag.impact(sp, flag)
         lost = flag != 0
         if not lost.any():
             return
@@ -672,6 +689,8 @@ class Simulation:
             if out is None:
                 continue
             self.emit_acc[k] += em.sp.q * out["w"].sum()
+            if self.energy_diag is not None:
+                self.energy_diag.inserted(em.sp, out)
             new.append((em.sp, out))
         return new
 
@@ -702,6 +721,8 @@ class Simulation:
         dt = self.dt
         t = self.t
         tm = time.perf_counter()
+        if self.energy_diag is not None:
+            self.energy_diag.begin_step()
         if not self.em:
             for sp in self.species:
                 if sp.n:
@@ -726,6 +747,8 @@ class Simulation:
             self._em_step(t, dt)
         self.t = t + dt
         self.step_count += 1
+        if self.energy_diag is not None:
+            self.energy_diag.finish_step()
 
     def _em_step(self, t, dt):
         g = self.grid
@@ -809,6 +832,9 @@ class Simulation:
                 Q1 = self.comm.allreduce(Q1)
             else:
                 Fy = self.comm.allreduce(Fy)
+            # Every replicated Yee grid must use the global current, including
+            # ranks with no local particles/emission during this step.
+            self._deposited = self.comm.allsum(int(self._deposited)) > 0
         tf = time.perf_counter()
         if self._j_dirty or self._deposited:
             yee.zero_J()
@@ -819,6 +845,8 @@ class Simulation:
             else:
                 yee.set_J(Fz, Fy, Q2, GUARD, dt)
             self._j_dirty = True
+        if self.energy_diag is not None:
+            self.energy_diag.record_particle_current()
         if self.sources:
             self._j_dirty = True
         for s in self.sources:
@@ -827,14 +855,27 @@ class Simulation:
             from ..fields.fdtd import filter_current
             filter_current(yee, self.j_filter, (g.nz,) if g.dim == 1 else (g.nz, g.ny),
                            (self.pbc[0] == 2,) if g.dim == 1 else (self.pbc[0] == 2, self.pbc[2] == 2))
+        if self.energy_diag is not None:
+            self.energy_diag.before_B()
         yee.half_B(dt)
+        if self.energy_diag is not None:
+            self.energy_diag.after_B()
+            self.energy_diag.before_E()
         if g.dim == 1:
             yee.full_E(dt)
         else:
             yee.full_E(dt, self.axis_factor)
+        if self.energy_diag is not None:
+            self.energy_diag.after_E()
+            self.energy_diag.before_B()
         yee.half_B(dt)
+        if self.energy_diag is not None:
+            self.energy_diag.after_B()
         if self.circuit is not None:
-            self.circuit.apply()          # legacy ideal zero-impedance voltage clamp
+            before = sum(self.energy_diag.field_energy()) if self.energy_diag is not None else 0.
+            correction = self.circuit.apply()          # legacy ideal zero-impedance voltage clamp
+            if self.energy_diag is not None:
+                self.energy_diag.control(before, correction)
         self._em_fields(t + dt)
         self.timers["field"] += time.perf_counter() - tf
 
@@ -855,6 +896,8 @@ class Simulation:
         for p in self.line_probes:
             cols += self._line_cols(p)
         cols += [f"P_{pl['name']}" for pl in self.plines]
+        if self.energy_diag is not None:
+            cols += list(self.energy_diag.names_units())
         return cols
 
     def history_units(self):
@@ -871,7 +914,9 @@ class Simulation:
                 lpos.add(pk)
         units = []
         for c_ in self.history_columns():
-            if c_ == "t":
+            if self.energy_diag is not None and c_ in self.energy_diag.names_units():
+                u = self.energy_diag.names_units()[c_]
+            elif c_ == "t":
                 u = "s"
             elif c_.startswith("KE_") or c_ == "W_field":
                 u = "J" + per
@@ -1039,6 +1084,8 @@ class Simulation:
         for lp in self.line_probes:
             row += self._line_probe(lp)
         row += [self.power_through(pl) for pl in self.plines]
+        if self.energy_diag is not None:
+            row += self.energy_diag.history_values()
         self.coll_side[:] = 0
         self.coll_obj[:] = 0
         self.emit_acc[:] = 0
@@ -1058,6 +1105,8 @@ class Simulation:
                 pass
         for c_, nm in enumerate(("E", "E", "E", "B", "B", "B")):
             d[f"{nm}{self.comp[c_ % 3]}"] = self.F[c_]
+        if self.energy_diag is not None:
+            d.update(self.energy_diag.current_snapshot())
         if self.local_es is not None:
             d.update(self.local_es.snapshot(self))
         elif self.em and len(self.species):
@@ -1107,6 +1156,7 @@ class Simulation:
             "conductors": [c_["name"] for c_ in self.mats.conductors],
             "objects": self.obj_names, "components": self.comp,
             "mpi_ranks": self.size, "threads": self.nchunk,
+            "history_units": dict(zip(cols, self.history_units())),
         })
         if out.enabled:
             from ..model.model import save
@@ -1165,6 +1215,8 @@ class Simulation:
                     self.log("Stop requested - finishing")
                     break
         self._diag(force=True)
+        if self.energy_diag is not None:
+            self.energy_diag.close()
         out.close()
         el = time.time() - tstart
         self.log(f"Finished {self.step_count} steps in {el:.2f} s "
@@ -1175,7 +1227,7 @@ class Simulation:
     def _diag(self, force=False):
         t0 = time.perf_counter()
         s = self.step_count
-        if force or s % self.h_every == 0:
+        if (force or s % self.h_every == 0) and (not self.history_rows or self.history_rows[-1][0] != s):
             row = self.history_row()
             self.history_rows.append(row)
             self.out.history(row)

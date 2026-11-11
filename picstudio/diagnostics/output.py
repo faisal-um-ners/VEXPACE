@@ -15,6 +15,16 @@ class Output:
         self._hist = None
         self.columns = []
         if enabled:
+            # A rerun may have fewer blocks/ranks, or disable diagnostics.
+            # Remove only names owned by the energy diagnostic writer.
+            from pathlib import Path
+            aux = Path(out_dir) / 'energy_diagnostics'
+            for pattern in ('metadata.json', 'dc_reference.npz', 'surface_energy.csv',
+                            'impact_histograms.npz', 'work_blocks.csv', 'work_block_*.npz',
+                            'trajectories_rank[0-9]*.csv', 'impacts_rank[0-9]*.csv',
+                            'hub_crossings_rank[0-9]*.csv'):
+                for path in aux.glob(pattern):
+                    if path.is_file(): _remove_retry(str(path))
             os.makedirs(os.path.join(out_dir, "fields"), exist_ok=True)
             os.makedirs(os.path.join(out_dir, "particles"), exist_ok=True)
             for sub in ("fields", "particles"):

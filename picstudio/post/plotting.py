@@ -42,7 +42,7 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
     ax.set_aspect("auto")         # clear() keeps the aspect of the previous model (e.g. an equal-aspect 2D one)
     # Display padding outside the physical 2D domain; the interior patch retains its theme color.
     import matplotlib as mpl
-    ax.set_facecolor("#f2f2f2" if geom != "1D-Z" else mpl.rcParams["axes.facecolor"])
+    ax.set_facecolor(mpl.rcParams["axes.facecolor"])
     if geom == "1D-Z":
         y0, y1 = 0.0, 1.0
     else:
@@ -63,7 +63,8 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
     else:
         import matplotlib as mpl
         vac = mpl.rcParams["axes.facecolor"]
-        ax.add_patch(Rectangle((z0, y0), z1 - z0, y1 - y0, fc=vac, ec="none", zorder=0))
+        ax.add_patch(Rectangle((z0, y0), z1 - z0, y1 - y0, fc=vac, ec="none", zorder=0,
+                               gid='vexpace-vacuum'))
         for i, obj in enumerate(m["objects"]):
             try:
                 shp = Shape(obj, ev)
@@ -76,7 +77,9 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
             if shp.kind == "expression":
                 Z, Y = np.meshgrid(np.linspace(z0, z1, 300), np.linspace(y0, y1, 300))
                 ins = shp.contains(Z, Y)
-                ax.contourf(Z, Y, ins.astype(float), levels=[0.5, 1.5], colors=[fc], zorder=1)
+                filled = ax.contourf(Z, Y, ins.astype(float), levels=[0.5, 1.5], colors=[fc], zorder=1)
+                if mat == 'vacuum':
+                    filled.set_gid('vexpace-vacuum')
                 continue
             outl = shp.outline()
             if shp.kind == "annulus":
@@ -84,11 +87,13 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
                 zc, yc, ri, ro = shp.p
                 pts = np.r_[np.c_[zc + ro * np.cos(th), yc + ro * np.sin(th)],
                             np.c_[zc + ri * np.cos(th[::-1]), yc + ri * np.sin(th[::-1])]]
-                ax.add_patch(MplPolygon(pts, closed=True, fc=fc, ec=ec, lw=lw, zorder=1 + i * 0.01))
+                ax.add_patch(MplPolygon(pts, closed=True, fc=fc, ec=ec, lw=lw, zorder=1 + i * 0.01,
+                                        gid='vexpace-vacuum' if mat == 'vacuum' else None))
             else:
                 for pl in outl:
                     ax.add_patch(MplPolygon(pl, closed=True, fc=fc, ec=ec, lw=lw, zorder=1 + i * 0.01,
                                             hatch="///" if mat == "lossy" else None,
+                                            gid='vexpace-vacuum' if mat == 'vacuum' else None,
                                             alpha=0.85 if mat == "lossy" else 1.0))
             if outl:
                 cz, cy = np.mean(outl[0][:-1], axis=0)
@@ -294,7 +299,8 @@ def plot_geometry(ax, model, show_mesh=False, painted=False, selected=None):
 def field_names(fdata):
     skip = {"t", "step", "z", "y", "geometry", "cell_mat"}
     return [k for k in fdata if k not in skip and not k.startswith(("history", "line_")) and "__" not in k
-            and k != "progress" and np.ndim(fdata[k]) >= 1 and np.size(fdata[k]) > 1]
+            and k != "progress" and not k.startswith("native_")
+            and np.ndim(fdata[k]) >= 1 and np.size(fdata[k]) > 1]
 
 
 def masked_field(fdata, qty):
@@ -324,7 +330,7 @@ def _conductor_cover(ax, fdata, z, y, mirror):
         return
     M = np.ma.masked_where(~c.T, np.ones(c.T.shape))
     ax.pcolormesh(z, y, M, cmap=ListedColormap([ax.get_facecolor()]), vmin=0, vmax=2, shading="flat",
-                  zorder=2, rasterized=True)
+                  zorder=2, rasterized=True, gid='vexpace-background-mask')
 
 
 def plot_field(ax, fdata, qty, cmap=None, mirror=False, colorbar_owner=None, vlim=None, aspect=None):
@@ -434,7 +440,7 @@ def plot_phase(ax, pdata, species=None, xv="z", yv="vz", masses=None, s=1.0):
     ax.set_title(f"Phase space   t = {float(pdata.get('t', 0)):.4g} s", fontsize=9)
 
 
-def plot_history(ax, H, cols, keys, logy=False):
+def plot_history(ax, H, cols, keys, logy=False, units=None):
     ax.clear()
     if H is None or len(H) == 0:
         return
@@ -442,9 +448,14 @@ def plot_history(ax, H, cols, keys, logy=False):
     for k in keys:
         if k in cols:
             # Currents are averages over the interval ending at each timestamp.
-            ax.plot(t, H[:, cols.index(k)], label=k, lw=1.2,
+            from ..diagnostics.signals import signal_label
+            ax.plot(t, H[:, cols.index(k)], label=signal_label(k), lw=1.2,
                     drawstyle="steps-pre" if k.startswith(("I_", "Iemit_")) else "default")
     ax.set_xlabel("t (s)")
+    selected_units = {units.get(k, '') for k in keys} if units else set()
+    if len(selected_units) == 1:
+        unit = selected_units.pop()
+        if unit: ax.set_ylabel(unit)
     if logy:
         ax.set_yscale("log")
     ax.grid(alpha=0.3)

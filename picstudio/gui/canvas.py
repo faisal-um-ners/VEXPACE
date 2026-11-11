@@ -21,7 +21,7 @@ class ExportToolbar(NavigationToolbar2QT):
 class PlotWidget(QWidget):
     def __init__(self, parent=None, nrows=1, ncols=1, figsize=(6, 4), style=None):
         """style: a theme name ("dark"/"light") that this plot keeps whatever the application theme
-        is (the live monitor stays dark); None follows the application theme."""
+        is; None follows the application theme."""
         super().__init__(parent)
         self._style = style
         with self.style_context():

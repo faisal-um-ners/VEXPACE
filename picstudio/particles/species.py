@@ -26,6 +26,7 @@ class Species:
         self.y_only = spec.get("motion", "full") == "y_only"     # infinite B along y: motion along y only
         self.n = 0
         self._cap = 0
+        self._diagnostic_arrays = None
         for f in _FIELDS:
             setattr(self, "_" + f, np.zeros(0))
         self._grow(capacity)
@@ -38,6 +39,11 @@ class Species:
             new = np.zeros(cap)
             new[: self.n] = old[: self.n]
             setattr(self, "_" + f, new)
+        if self._diagnostic_arrays is not None:
+            for f, old in self._diagnostic_arrays.items():
+                new = np.zeros(cap, dtype=old.dtype)
+                new[:self.n] = old[:self.n]
+                self._diagnostic_arrays[f] = new
         self._cap = cap
 
     def add(self, z, y, u0, u1, u2, w):
@@ -53,6 +59,14 @@ class Species:
         self._u1[s] = u1
         self._u2[s] = u2
         self._w[s] = w
+        if self._diagnostic_arrays is not None:
+            if self._diagnostic_next + k >= 2**40:
+                raise OverflowError("Diagnostic particle ID counter exhausted")
+            self._diagnostic_arrays['id'][s] = self._diagnostic_prefix + np.arange(
+                self._diagnostic_next, self._diagnostic_next+k, dtype=np.uint64)
+            self._diagnostic_next += k
+            for f in ('work_total', 'work_dc', 'work_rf'):
+                self._diagnostic_arrays[f][s] = 0.
         self.n += k
 
     def keep(self, mask):
@@ -65,7 +79,22 @@ class Species:
         for f in _FIELDS:
             a = getattr(self, "_" + f)
             a[:k] = a[:n][idx]
+        if self._diagnostic_arrays is not None:
+            for a in self._diagnostic_arrays.values():
+                a[:k] = a[:n][idx]
         self.n = k
+
+    def enable_energy_tracking(self, rank=0):
+        """Optional identities/work arrays; never consumes the simulation RNG."""
+        if self._diagnostic_arrays is not None:
+            return
+        if self.index >= 256 or rank >= 65536 or rank < 0:
+            raise ValueError("Diagnostic IDs support <256 species and <65536 ranks")
+        self._diagnostic_prefix = np.uint64((self.index << 56) | (rank << 40))
+        self._diagnostic_next = self.n
+        self._diagnostic_arrays = {'id': np.zeros(self._cap, dtype=np.uint64)}
+        self._diagnostic_arrays['id'][:self.n] = self._diagnostic_prefix + np.arange(self.n, dtype=np.uint64)
+        self._diagnostic_arrays.update({k: np.zeros(self._cap) for k in ('work_total', 'work_dc', 'work_rf')})
 
     # views on the active particles --------------------------------------
     @property
@@ -107,4 +136,7 @@ class Species:
             idx = np.sort(rng.choice(n, nmax, replace=False))
         else:
             idx = slice(None)
-        return {f: getattr(self, f)[idx].copy() for f in _FIELDS}
+        out = {f: getattr(self, f)[idx].copy() for f in _FIELDS}
+        if self._diagnostic_arrays is not None:
+            out.update({f: a[:n][idx].copy() for f, a in self._diagnostic_arrays.items()})
+        return out

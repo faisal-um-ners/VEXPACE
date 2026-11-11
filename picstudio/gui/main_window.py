@@ -53,7 +53,9 @@ class MainWindow(QMainWindow):
         self.proc = None
         self.run_out = None
         self.selected = None
-        self.theme = self.settings.value("theme", "light") or "light"
+        # New default is white. Remember subsequent explicit toggles separately
+        # from the historical dark preference used by earlier builds.
+        self.theme = self.settings.value("theme_white_default", "light") or "light"
         from .theme import apply_matplotlib, stylesheet
         QApplication.instance().setStyleSheet(stylesheet(self.theme))
         apply_matplotlib(self.theme)
@@ -180,12 +182,12 @@ class MainWindow(QMainWindow):
     def set_theme(self, name):
         from .theme import apply_matplotlib, stylesheet
         self.theme = name
-        self.settings.setValue("theme", name)
+        self.settings.setValue("theme_white_default", name)
         QApplication.instance().setStyleSheet(stylesheet(name))
         apply_matplotlib(name)
         import matplotlib as mpl
         for pw, grid in ((self.geo_plot, (1, 1)), (self.live.plot, (2, 2)), (self.results.plot, (1, 1))):
-            pw.set_grid(*grid)                 # the live plot keeps its own (dark) style
+            pw.set_grid(*grid)
             if pw is not self.live.plot:
                 pw.fig.set_facecolor(mpl.rcParams["figure.facecolor"])
         self.draw_geometry()

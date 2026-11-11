@@ -29,7 +29,7 @@ from .widgets import label, push
 
 FORMATS = [("PNG (raster)", "png"), ("PDF (vector)", "pdf"), ("SVG (vector)", "svg"), ("EPS (vector)", "eps"),
            ("TIFF (raster)", "tiff")]
-STYLES = [("Publication – white", "publication"), ("Presentation – dark", "dark"), ("Same as screen", "screen")]
+STYLES = [("Publication – white", "publication")]
 PRESETS = [("Single column (3.4 × 2.6 in)", 3.4, 2.6), ("Double column (7.0 × 3.6 in)", 7.0, 3.6),
            ("Slide (10 × 5.6 in)", 10.0, 5.6), ("Square (4 × 4 in)", 4.0, 4.0), ("Custom", None, None)]
 FAMILIES = [("Sans-serif (Arial / Helvetica)", "sans"), ("Serif (Times)", "serif"),
@@ -335,7 +335,9 @@ def _family_rc(key: str, usetex: bool) -> dict:
 
 
 def export_rc(opts: ExportOptions) -> dict:
-    rc = {} if opts.style == "screen" else T.publication_rc(opts.font_size, dark=(opts.style == "dark"))
+    # Printed/exported figures are always white, independent of the GUI theme
+    # or an older stored export preference.
+    rc = T.publication_rc(opts.font_size, dark=False)
     fs = opts.font_size
     rc.update({"font.size": fs, "axes.labelsize": fs, "axes.titlesize": fs, "figure.titlesize": fs * 1.1,
                "xtick.labelsize": fs * 0.9, "ytick.labelsize": fs * 0.9, "legend.fontsize": fs * opts.legend_scale,

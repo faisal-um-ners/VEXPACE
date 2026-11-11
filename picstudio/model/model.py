@@ -341,6 +341,12 @@ def validate(model: dict) -> list[tuple[str, str]]:
                                     "Use 0 filter passes (or the smoothing option) for SCL problems."))
     except Exception:  # noqa: BLE001
         pass
+    if m['diagnostics'].get('energy_enabled', False):
+        try:
+            from ..diagnostics.energy import EnergyDiagnostics
+            EnergyDiagnostics.validate(m)
+        except Exception as exc:
+            msgs.append(('error', 'Energy diagnostics: '+str(exc)))
     if not any(l == "error" for l, _ in msgs):
         msgs.append(("info", "Model check passed"))
     return msgs

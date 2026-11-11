@@ -87,7 +87,8 @@ def _capture_axes(ax):
                                       style="none", marker="o", markersize=float(np.sqrt(np.median(sizes))) if len(sizes) else 4))
             bindings.append(("scatter", i))
     mappables = list(ax.images) + [c for c in ax.collections
-                                 if not isinstance(c, PathCollection) and c.get_array() is not None]
+                                 if not isinstance(c, PathCollection) and c.get_array() is not None
+                                 and c.get_gid() not in ('vexpace-vacuum', 'vexpace-background-mask')]
     if mappables:
         im = mappables[0]
         data = np.asanyarray(im.get_array())
@@ -153,6 +154,18 @@ def render_snapshot(spec, opts, dpi):
     drawn_axes = []
     for ax in all_axes:
         ax.set_facecolor(rc["axes.facecolor"])
+        # Geometry vacuum regions are explicit artists, not the axes face.
+        # Recolour only tagged backgrounds, preserving physical material/data colours.
+        for artist in list(ax.patches)+list(ax.collections):
+            if artist.get_gid() == 'vexpace-vacuum':
+                artist.set_facecolor('white')
+            elif artist.get_gid() == 'vexpace-background-mask':
+                from matplotlib.colors import ListedColormap
+                artist.set_cmap(ListedColormap(['white']))
+        legend = ax.get_legend()
+        if legend is not None:
+            legend.get_frame().set_facecolor('white')
+            legend.get_frame().set_edgecolor(rc['axes.edgecolor'])
         for text in ax.texts:
             _font(text, opts.font_size, rc["text.color"])
         for side, spine in ax.spines.items():
@@ -287,6 +300,7 @@ def render_snapshot(spec, opts, dpi):
 
 
 def _style_dialog(dialog, name):
+    dialog.setObjectName('vexpaceExportDialog')
     t = T.set_current(name)
     families = ["Inter", "SF Pro Text", ".AppleSystemUIFont", "Segoe UI", "Helvetica Neue", "Noto Sans",
                 "Ubuntu", "Cantarell", "DejaVu Sans", "Arial"]
@@ -303,6 +317,8 @@ def _style_dialog(dialog, name):
            .replace("url(:/chev_down)", f'url("{icons.ui_asset_file("chev_down",t["text2"])}")')
            .replace("url(:/chev_up)", f'url("{icons.ui_asset_file("chev_up",t["text2"])}")')
            .replace("url(:/radio)", f'url("{icons.ui_asset_file("radio_dot",t["accent"])}")'))
+    # ID-scoped backgrounds override the parent application's dark QWidget rules.
+    qss += '\nQDialog#vexpaceExportDialog, QDialog#vexpaceExportDialog QWidget { background-color: #ffffff; color: #0f172a; }\n'
     dialog.setStyleSheet(qss)
 
 
