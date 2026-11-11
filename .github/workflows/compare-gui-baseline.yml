@@ -1,9 +1,6 @@
 name: Compare GUI RZ regression on main and EM branch
 
 on:
-  push:
-    branches:
-      - feature/em-conductor-modes-20261111
   workflow_dispatch:
 
 jobs:
