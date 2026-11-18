@@ -36,6 +36,8 @@ name VEL-PIC.)
   the whole surface of a conductor.
 - **Particles.** Boris, Vay and Higuera–Cary pushers; energy- or momentum-conserving gather; species motion
   in the applied fields or confined to one direction (the infinite-magnetic-field limit along z or y).
+  An opt-in [work-centered EM coupling mode](docs/WORK_CENTERED_COUPLING.md) pairs particle work with
+  native current work, including prescribed bias, fractional births and absorbing-surface impacts.
 - **Fields.** Uniform, analytic, coil and solenoid fields; laser antennas, plane waves and TEM ports;
   graded absorbing layers; electrodes held at their potentials in electromagnetic runs.
 - **Diagnostics.** Currents on every electrode, point and line probes (minimum, maximum and average along a

@@ -55,6 +55,9 @@ class Simulation:
     def __init__(self, model, out_dir=None, comm=None, log=None, write_output=True,
                  base_dir=None):
         self.model = m = complete(model)
+        from .work_centered import validate as validate_coupling
+        validate_coupling(m)  # reject before any output folder is touched
+        self.work_centered = m['simulation'].get('em_coupling','legacy') == 'work-centered'
         if m['diagnostics'].get('energy_enabled', False):
             # Reject unsupported diagnostics before Output can touch a folder.
             from ..diagnostics.energy import EnergyDiagnostics
@@ -192,6 +195,7 @@ class Simulation:
                      "using it for this run")
         self.ic2 = K.INV_C2 if self.rel else 0.0
         self.phi = np.zeros(g.shape)
+        self.bias_phi = None
         self.rho = np.zeros(g.shape)
         self.static_rhs = np.zeros(g.shape)       # charge stuck on dielectrics (ES)
         self.Bself = None
@@ -457,6 +461,7 @@ class Simulation:
                 if self.static_E is None or self.v_td:
                     phiL = self.poisson.laplace_field(V)
                     self.phi = phiL
+                    self.bias_phi = phiL.copy()
                     self.static_E = gradient_field(phiL, g, self.pz, self.py)
                 for c_, Ec in enumerate(self.static_E):
                     self.F[c_] += Ec
@@ -482,6 +487,8 @@ class Simulation:
                 self.yee.set_from_potential(phi0)
             self.rho = self.density(Q)
             self._em_fields(0.0)
+        if self.work_centered:
+            return  # work-centered momenta/positions are synchronized, not leapfrogged
         # leapfrog: push the momenta back by half a step with the full Lorentz force
         # (as WarpX does at initialisation, PushP(-dt/2))
         for sp in self.species:
@@ -695,7 +702,7 @@ class Simulation:
         for k, em in enumerate(self.emitters):
             out = em.emit(t_emit, self.dt, self.rng, self.step_count, self.rank, self.size,
                           phi=None if self.em else self.phi, efield=efield, reaction=reaction,
-                          yee=yee, static_E=static, qnodes=qn)
+                          yee=yee, static_E=static, qnodes=qn, work_centered=self.work_centered)
             if out is None:
                 continue
             self.emit_acc[k] += em.sp.q * out["w"].sum()
@@ -761,6 +768,10 @@ class Simulation:
             self.energy_diag.finish_step()
 
     def _em_step(self, t, dt):
+        if self.work_centered:
+            from .work_centered import step
+            step(self, t, dt)
+            return
         g = self.grid
         yee = self.yee
         tm = time.perf_counter()
@@ -1167,6 +1178,8 @@ class Simulation:
             "conductors": [c_["name"] for c_ in self.mats.conductors],
             "objects": self.obj_names, "components": self.comp,
             "mpi_ranks": self.size, "threads": self.nchunk,
+            "em_coupling": self.model['simulation'].get('em_coupling','legacy'),
+            "momentum_time_layout": "synchronized" if self.work_centered else "leapfrog",
             "history_units": dict(zip(cols, self.history_units())),
         })
         if out.enabled:

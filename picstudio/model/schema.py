@@ -53,7 +53,22 @@ SIMULATION = [
     Field("n_steps", "expr", "", "Number of steps (override)", "",
           help="If given, overrides End time."),
     Field("relativistic", "bool", True, "Relativistic pusher"),
-    Field("particle_pusher", "choice", "boris", "Particle pusher", choices=("boris", "vay", "higuera"),
+    Field("em_coupling", "choice", "legacy", "EM particle–field coupling",
+          choices=("legacy", "work-centered"), show_if={"solver": ["electromagnetic"]},
+          choice_labels={"legacy": "Legacy explicit", "work-centered": "Work-centered (implicit)"},
+          help="Work-centered: solve Lorentz momentum and native current together using the same "
+               "midpoint electric field and orbit weights; stop at the first absorbing surface. "
+               "Cartesian 2D, full motion, prescribed electrode bias/static uniform applied fields, no smoothing/current filter. "
+               "Uses its own implicit momentum update instead of the explicit pusher below. "
+               "Physical equations and emission laws stay the same; numerical trajectories may change. "
+               "Legacy preserves existing runs. Finite-grid Maxwell/boundary errors still require convergence checks."),
+    Field("coupling_tolerance", "expr", "1e-11", "Coupling relative tolerance",
+          show_if={"solver": ["electromagnetic"], "em_coupling": ["work-centered"]},
+          help="Nonlinear particle/field iteration tolerance. Failure stops the run; never falls back to legacy."),
+    Field("coupling_iterations", "int", 100, "Maximum coupling iterations",
+          show_if={"solver": ["electromagnetic"], "em_coupling": ["work-centered"]}),
+    Field("particle_pusher", "choice", "boris", "Explicit particle pusher", choices=("boris", "vay", "higuera"),
+          show_if={"em_coupling": ["legacy"]},
           help="Same algorithms as WarpX (algo.particle_pusher): boris (default), vay (Vay 2008, correct "
                "E x B drift for relativistic particles) or higuera (Higuera & Cary 2017, volume preserving "
                "and correct E x B drift)."),
@@ -65,7 +80,8 @@ SIMULATION = [
                "interpolation of node-centred fields - second-order accurate at emitting surfaces, so "
                "space-charge-limited emission converges faster.  auto: energy-conserving for the EM "
                "solver (as WarpX), momentum-conserving for the ES solver.  Choose energy-conserving "
-               "for runs that must reproduce WarpX exactly. Local 2D P1 mesh: auto uses the direct "
+               "for compatible native-grid spatial weighting; finite timesteps still require convergence. "
+               "Local 2D P1 mesh: auto uses the direct "
                "element gradient; momentum-conserving selects an L2-projected nodal reconstruction, "
                "which does not imply exact momentum conservation on an irregular mesh."),
     Field("smoothing", "int", 0, "Binomial smoothing passes", "",

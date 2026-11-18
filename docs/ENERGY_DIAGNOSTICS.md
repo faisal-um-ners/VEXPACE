@@ -7,6 +7,14 @@ emission, boundary handling, smoothing, or conductor modes. They add memory,
 arithmetic and output cost. Other geometries and pushers are rejected when the
 option is enabled, before an output folder is opened.
 
+The opt-in [work-centered coupling mode](WORK_CENTERED_COUPLING.md) also supports
+these diagnostics. It changes the numerical integration independently of the
+diagnostic switch; enabling diagnostics remains passive within either mode.
+In work-centered mode, actual orbit/residence work replaces Boris-kick work,
+birth KE is physical initial KE, and impacts stop at the first painted surface.
+Its direct-RF exchange residual separately accounts for imposed-bias fluctuations,
+including startup voltage ramps. Existing project files retain legacy integration.
+
 Set **Mean-field reference starts at** after the oscillation settles and choose
 a reference duration covering many RF periods. The diagnostic records a time
 mean of the fields actually gathered by the particles, then freezes that mean

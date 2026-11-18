@@ -380,7 +380,7 @@ class Emitter:
         return Ez * n[:, 0] + Ey * n[:, 1]
 
     def emit(self, t, dt, rng, step=0, rank=0, size=1, phi=None, efield=None, reaction=None, yee=None,
-             static_E=None, qnodes=None):
+             static_E=None, qnodes=None, work_centered=False):
         """Create particles emitted during the step (t, t+dt].  Returns dict or None.
 
         A prescribed J(t) (beam, photo) is sampled at the middle of the step, Q = J(t + dt/2) A dt
@@ -461,6 +461,19 @@ class Emitter:
         if g.dim == 1:
             ut[:] = 0.0
         tau = rng.random(N) * dt
+        if work_centered:
+            # Same charge law, temperature/energy distribution and random birth
+            # times. The coupled integrator advances the physical birth momentum
+            # over tau; do not pre-accelerate/drift using the legacy half-step.
+            nv,tv=self.nvec[pan],self.tvec[pan]
+            # Current must originate on the emitting surface, not at a
+            # displaced vacuum point where charge would appear without flux.
+            birth=base.copy()
+            self.emitted_charge+=q*w.sum()
+            return dict(z=birth[:,0],y=birth[:,1],u0=un*nv[:,0]+ut*tv[:,0],
+                        u1=un*nv[:,1]+ut*tv[:,1],u2=uo,w=w,
+                        z_birth=birth[:,0],y_birth=birth[:,1],residence_time=tau,
+                        iteration_seed=nv.T*C.c*1e-4)
         a = accel[pan]
         nv = self.nvec[pan]
         tv = self.tvec[pan]

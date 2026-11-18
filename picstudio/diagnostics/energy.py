@@ -1,6 +1,7 @@
 """Passive energy diagnostics for Cartesian 2D electromagnetic Boris runs.
 
-All particle work uses the actual electric kicks of the unchanged Boris push.
+Particle work follows the selected numerical update: the unchanged Boris
+electric kicks in legacy mode, or the actual work-centered orbit residence.
 The frozen mean field is a diagnostic reference, never a force imposed on the
 simulation. Source/control work and numerical residuals remain separate.
 """
@@ -68,6 +69,7 @@ class EnergyDiagnostics:
         self.reference_finished = None
         self.node_mean = np.zeros((6,)+sim.grid.shape)
         self.native_mean = [np.zeros_like(getattr(sim.yee, 'E'+str(k))) for k in range(3)]
+        self.bias_mean = [np.zeros_like(a) for a in self.native_mean]
         self.zero_B = [np.zeros_like(getattr(sim.yee, 'B'+str(k))) for k in range(3)]
         self.surface_names = ['boundary:'+k for k in ('z_min','z_max','y_min','y_max')]
         self.surface_names += ['object:'+str(i)+':'+n for i,n in enumerate(sim.obj_names)]
@@ -75,6 +77,7 @@ class EnergyDiagnostics:
         # Local particle quantities are MPI-reduced only when read; grid data
         # are already replicated/allreduced by the solver and must not be summed.
         self.local = dict(push=0., applied=0., dc=0., rf=0., classified=0., inserted=0.)
+        if sim.work_centered:self.local['applied_rf']=0.
         self.surfaces = np.zeros((self.nsurf, 3))  # count, charge, KE
         self.hist = np.zeros((self.nsurf, self.bins+1))  # last bin = overflow
         self.grid = dict(particle=0., antenna=0., load=0., load_rf=0., absorber=0., control=0., voltage=0.)
@@ -126,7 +129,8 @@ class EnergyDiagnostics:
             raise ValueError('Per-push RF traces require Direct RF work every particle push')
         if sim['geometry'] != '2D-ZY' or sim['solver'] != 'electromagnetic':
             raise ValueError('Energy diagnostics currently require 2D-ZY electromagnetic geometry')
-        if sim.get('particle_pusher', 'boris') != 'boris' or any(s.get('motion','full') != 'full' for s in model['species']):
+        if ((sim.get('em_coupling','legacy') != 'work-centered' and sim.get('particle_pusher', 'boris') != 'boris')
+                or any(s.get('motion','full') != 'full' for s in model['species'])):
             raise ValueError('Energy diagnostics require Boris and full particle motion')
         from ..model.model import evaluator
         ev = evaluator(model)
@@ -172,11 +176,19 @@ class EnergyDiagnostics:
 
     def begin_step(self):
         s=self.s
+        if s.work_centered:return  # accumulate actual converged midpoint fields instead
         if s.t >= self.start and not self.reference_ready:
             if self.reference_started is None:self.reference_started=s.t
             self.reference_count+=1
             self.node_mean += s.F_gather if s.gather_ec else s.F
             for k in range(3):self.native_mean[k] += getattr(s.yee,'E'+str(k))
+
+    def centered_reference(self,native,bias):
+        s=self.s
+        if s.t<self.start or self.reference_ready:return
+        if self.reference_started is None:self.reference_started=s.t
+        self.reference_count+=1
+        for a,b,c,d in zip(self.native_mean,self.bias_mean,native,bias):a+=c;b+=d
 
     def finish_step(self):
         s=self.s
@@ -184,13 +196,23 @@ class EnergyDiagnostics:
                 and self.reference_count*s.dt >= self.reference_time*(1.-1e-12)):
             self.node_mean /= self.reference_count
             for a in self.native_mean:a /= self.reference_count
+            if s.work_centered:
+                for a in self.bias_mean:a/=self.reference_count
+                from ..fields.fdtd import _avg_half_to_node
+                combined=[a+b for a,b in zip(self.native_mean,self.bias_mean)]
+                self.node_mean[0]=_avg_half_to_node(combined[0],0,s.pz)
+                self.node_mean[1]=_avg_half_to_node(combined[1],1,s.py)
+                self.node_mean[2]=combined[2]
+                external=s.ext.nodal(s.t)
+                if external is not None:self.node_mean+=external
             self.reference_ready=True;self.reference_finished=s.t
             self.ref_grid0=self.grid.copy()
             if self.writing and s.rank==0:
+                extra={f'bias_E{k}':a for k,a in enumerate(self.bias_mean)} if s.work_centered else {}
                 np.savez_compressed(self.aux/'dc_reference.npz',node_fields=self.node_mean,
                                     E0=self.native_mean[0],E1=self.native_mean[1],E2=self.native_mean[2],
                                     t_start=self.reference_started,t_end=s.t,z=s.grid.z,y=s.grid.y,
-                                    gather_energy_conserving=s.gather_ec)
+                                    gather_energy_conserving=s.gather_ec,**extra)
                 self.write_metadata()
             if self.direct_rf:
                 for sp in s.species:
@@ -201,6 +223,12 @@ class EnergyDiagnostics:
     def gather_reference(self, sp):
         if not self.reference_ready:return None
         s,g=self.s,self.s.grid
+        if s.work_centered:
+            from ..core.work_centered import gather
+            out=gather(s,[a+b for a,b in zip(self.native_mean,self.bias_mean)],sp.z,sp.y,sp.z,sp.y)
+            external=s.ext.nodal(s.t)
+            if external is not None:out+=external[:3,0,0,None]
+            return out
         zl,yl=np.ascontiguousarray(g.lz(sp.z)),np.ascontiguousarray(g.ly(sp.y))
         out=np.empty((6,sp.n))
         K.gather_nodal_2d(self.node_mean,zl,yl,sp.n,g.nz,g.ny,out)
@@ -210,6 +238,12 @@ class EnergyDiagnostics:
 
     def applied_at(self, sp):
         s=self.s
+        if s.work_centered:
+            from ..core.work_centered import gather,bias_fields
+            out=gather(s,bias_fields(s,s.t+.5*s.dt),sp.z,sp.y,sp.z,sp.y)
+            external=s.ext.nodal(s.t)
+            if external is not None:out+=external[:3,0,0,None]
+            return out
         fields=np.zeros_like(s.F)
         if s.static_E is not None:
             for k,a in enumerate(s.static_E):fields[k]+=a
@@ -219,11 +253,20 @@ class EnergyDiagnostics:
         K.gather_nodal_2d(fields,np.ascontiguousarray(s.grid.lz(sp.z)),np.ascontiguousarray(s.grid.ly(sp.y)),sp.n,s.grid.nz,s.grid.ny,out)
         return out[:3]
 
-    def pushed(self, sp, old_u, old_z, old_y, fields, ref, applied):
+    def pushed(self, sp, old_u, old_z, old_y, fields, ref, applied,
+               work_displacement=None, durations=None, start_times=None,reference_applied=None):
         s=self.s
         u=np.array([sp.u0,sp.u1,sp.u2])
-        total,dc,rf=boris_work(old_u,u,fields[:3],ref,sp.qm,s.dt,sp.m,s.rel)
-        _,wa,_=boris_work(old_u,u,fields[:3],applied,sp.qm,s.dt,sp.m,s.rel)
+        if work_displacement is None:
+            total,dc,rf=boris_work(old_u,u,fields[:3],ref,sp.qm,s.dt,sp.m,s.rel)
+            _,wa,_=boris_work(old_u,u,fields[:3],applied,sp.qm,s.dt,sp.m,s.rel)
+        else:
+            total=sp.q*np.sum(fields[:3]*work_displacement,axis=0)
+            dc=sp.q*np.sum(ref*work_displacement,axis=0) if ref is not None else np.zeros_like(total)
+            rf=-(total-dc)
+            wa=sp.q*np.sum(applied*work_displacement,axis=0)
+            if reference_applied is not None:
+                self.local['applied_rf']+=float(np.dot(sp.w,sp.q*np.sum((applied-reference_applied)*work_displacement,axis=0)))
         self.local['push']+=float(np.dot(sp.w,total))
         self.local['applied']+=float(np.dot(sp.w,wa))
         a=sp._diagnostic_arrays
@@ -234,13 +277,21 @@ class EnergyDiagnostics:
             self.push_positions[sp.name] = (old_z, old_y, sp.z.copy(), sp.y.copy())
             if ref is not None:
                 direct_before = a['work_rf_direct'][:sp.n].copy() if self.hub_y is not None else None
-                direct = direct_rf_boris_work(old_u, u, fields[:3], ref, sp.q, sp.m, s.dt, s.rel)
+                if work_displacement is None:
+                    direct = direct_rf_boris_work(old_u, u, fields[:3], ref, sp.q, sp.m, s.dt, s.rel)
+                else:
+                    # Direct orbit-field dot product, independently of K or DC-work subtraction.
+                    components=-sp.q*(fields[:3]-ref)*work_displacement
+                    direct=dict(rf_direct_J=np.sum(components,axis=0),
+                                rf_direct_components_J=components,E_rf_V_per_m=fields[:3]-ref,
+                                boris_displacement_m=work_displacement)
                 missing = np.isnan(a['rf_valid_since'][:sp.n])
-                a['rf_valid_since'][:sp.n][missing] = s.t
+                a['rf_valid_since'][:sp.n][missing] = (s.t if start_times is None else start_times[missing])
                 a['work_rf_direct'][:sp.n] += direct['rf_direct_J']
                 self.local['rf_direct'] += float(np.dot(sp.w, direct['rf_direct_J']))
                 if self.writing and self.push_trace:
-                    self._record_push(sp, old_u, u, old_z, old_y, fields[:3], ref, direct)
+                    self._record_push(sp, old_u, u, old_z, old_y, fields[:3], ref, direct,
+                                      durations=durations,start_times=start_times)
         a['work_total'][:sp.n]+=total
         if ref is not None:
             self.local['dc']+=float(np.dot(sp.w,dc));self.local['rf']+=float(np.dot(sp.w,rf))
@@ -258,8 +309,9 @@ class EnergyDiagnostics:
                 if self.direct_rf:
                     before = direct_before[i] if direct_before is not None else np.nan
                     after = a['work_rf_direct'][i] if ref is not None else np.nan
-                    extra = [before+f*(after-before),before,after,a['rf_valid_since'][i],s.t,s.dt,f,old_z[i],old_y[i],sp.z[i],sp.y[i]]
-                self.cross_writer.writerow([s.step_count+1,s.t+f*s.dt,sp.name,int(a['id'][i]),int(np.sign(sp.y[i]-old_y[i])),sp.w[i],old_z[i]+f*(sp.z[i]-old_z[i]),self.hub_y,K0[i]+f*(K1[i]-K0[i]),*vals,int(self.reference_ready),*extra])
+                    extra = [before+f*(after-before),before,after,a['rf_valid_since'][i],s.t if start_times is None else start_times[i],s.dt if durations is None else durations[i],f,old_z[i],old_y[i],sp.z[i],sp.y[i]]
+                cross_time=s.t+f*s.dt if durations is None else start_times[i]+f*durations[i]
+                self.cross_writer.writerow([s.step_count+1,cross_time,sp.name,int(a['id'][i]),int(np.sign(sp.y[i]-old_y[i])),sp.w[i],old_z[i]+f*(sp.z[i]-old_z[i]),self.hub_y,K0[i]+f*(K1[i]-K0[i]),*vals,int(self.reference_ready),*extra])
 
     def _direct_columns(self):
         return ['W_rf_direct_J', 'rf_valid_since'] if self.direct_rf else []
@@ -271,24 +323,30 @@ class EnergyDiagnostics:
         valid = self.reference_ready and np.isfinite(a['rf_valid_since'][i])
         return [a['work_rf_direct'][i] if valid else np.nan, a['rf_valid_since'][i]]
 
-    def _record_push(self, sp, old_u, new_u, old_z, old_y, E, ref, direct):
+    def _record_push(self, sp, old_u, new_u, old_z, old_y, E, ref, direct,
+                     durations=None,start_times=None):
         pick = self.selected(sp)
         n = int(np.count_nonzero(pick))
         if not n:
             return
         s, a = self.s, sp._diagnostic_arrays
         record = dict(id=a['id'][:sp.n][pick].copy(), species_index=np.full(n,sp.index,dtype=np.int32),
-            step=np.full(n,s.step_count+1,dtype=np.int64), t_before=np.full(n,s.t),dt=np.full(n,s.dt),
+            step=np.full(n,s.step_count+1,dtype=np.int64),
+            t_before=np.full(n,s.t) if start_times is None else start_times[pick].copy(),
+            dt=np.full(n,s.dt) if durations is None else durations[pick].copy(),
             weight=sp.w[pick].copy(),charge_C=np.full(n,sp.q),mass_kg=np.full(n,sp.m),
             position_before=np.column_stack([old_z[pick],old_y[pick]]),
             position_after_unclipped=np.column_stack([sp.z[pick],sp.y[pick]]),
             u_before=old_u[:,pick].T.copy(),u_after=new_u[:,pick].T.copy(),
             E_gathered=E[:,pick].T.copy(),E_DC_gathered=ref[:,pick].T.copy(),
             d_Boris=direct['boris_displacement_m'][:,pick].T.copy(),
+            d_work=direct['boris_displacement_m'][:,pick].T.copy(),
             delta_W_rf_direct_J=direct['rf_direct_J'][pick].copy(),
             W_rf_direct_J=a['work_rf_direct'][:sp.n][pick].copy(),
             rf_valid_since=a['rf_valid_since'][:sp.n][pick].copy())
         self.push_records.append(record)
+        if s.work_centered:
+            record['d_Boris'][:]=np.nan  # explicitly not a Boris push in this mode
         self.push_record_count += n
         if self.push_record_count >= 8192:
             self._flush_push_trace()
@@ -337,7 +395,9 @@ class EnergyDiagnostics:
                 positions = []
                 if self.direct_rf:
                     positions = [v[i] for v in self.push_positions.get(sp.name,(sp.z,sp.y,sp.z,sp.y))]
-                self.event_writer.writerow([self.s.step_count+1,self.s.t+self.s.dt,sp.name,int(a['id'][i]),self.surface_names[indices[i]],sp.w[i],sp.z[i],sp.y[i],kk[i],a['work_total'][i],dc,rf,int(self.reference_ready),*self._direct_values(sp,i),*positions])
+                times=getattr(self.s,'_impact_times',{}).get(sp.name)
+                impact_time=self.s.t+self.s.dt if times is None else times[i]
+                self.event_writer.writerow([self.s.step_count+1,impact_time,sp.name,int(a['id'][i]),self.surface_names[indices[i]],sp.w[i],sp.z[i],sp.y[i],kk[i],a['work_total'][i],dc,rf,int(self.reference_ready),*self._direct_values(sp,i),*positions])
 
     def before_B(self):
         self.old_B=[getattr(self.s.yee,'B'+str(k)).copy() for k in range(3)]
@@ -411,6 +471,8 @@ class EnergyDiagnostics:
         if self.direct_rf:
             base.update(ED_W_rf_direct='J/m',ED_P_rf_direct='W/m',ED_W_grid_rf_direct='J/m',
                         ED_R_rf_arithmetic='J/m',ED_R_rf_exchange='J/m')
+        if self.s.work_centered:
+            base.update(ED_R_exchange='J/m',ED_W_applied_rf='J/m',ED_coupling_iterations='',ED_coupling_residual='')
         for j in range(self.nsurf):base[f'ED_K_surface_{j}']='J/m';base[f'ED_P_surface_{j}']='W/m'
         return base
 
@@ -442,6 +504,11 @@ class EnergyDiagnostics:
                 'ED_R_model':ke-self.initial_KE+ue+ub-self.initial_field-p['applied']-G['antenna']-G['control']-p['inserted']+lost+G['load']+G['absorber'],
                 'ED_eta_load':eta}
         dt=s.t-self.previous_time
+        if s.work_centered:
+            values.update(ED_R_exchange=p['push']-p['applied']-G['particle'],
+                          ED_W_applied_rf=p['applied_rf'] if ready else np.nan,
+                          ED_coupling_iterations=getattr(s,'coupling_iterations',0),
+                          ED_coupling_residual=getattr(s,'coupling_residual',np.nan))
         for label,key in [('ED_P_load','load'),('ED_P_load_rf','load_rf')]:
             values[label]=(G[key]-self.previous_power.get(key,0.))/dt if dt>0 else np.nan
             if key=='load_rf' and not ready:values[label]=np.nan
@@ -452,7 +519,7 @@ class EnergyDiagnostics:
                 ED_P_rf_direct=(p['rf_direct']-self.previous_power.get('rf_direct',0.))/elapsed if elapsed>0 else np.nan,
                 ED_W_grid_rf_direct=G['rf_direct'] if ready else np.nan,
                 ED_R_rf_arithmetic=p['rf_direct']-p['rf'] if ready else np.nan,
-                ED_R_rf_exchange=p['rf_direct']-G['rf_direct'] if ready else np.nan)
+                ED_R_rf_exchange=p['rf_direct']-G['rf_direct']+p.get('applied_rf',0.) if ready else np.nan)
             self.previous_power['rf_direct'] = p['rf_direct']
         for j in range(self.nsurf):
             key='surface_'+str(j);values[f'ED_K_surface_{j}']=sur[j,2]
@@ -490,7 +557,9 @@ class EnergyDiagnostics:
             event_files='Per-rank shards; global counters MPI-reduced once, replicated fields never MPI-summed.',
             hub_crossings='Selected trajectories; time, position, KE/work linearly interpolated within a step.',
             signal_units=self.names_units())
-        metadata.update(direct_rf_enabled=self.direct_rf,raw_rf_push_trace=self.push_trace,
+        metadata.update(em_coupling=self.s.model['simulation'].get('em_coupling','legacy'),
+                        work_displacement='orbit residence * discrete-gradient velocity' if self.s.work_centered else 'two Boris electric kicks',
+                        direct_rf_enabled=self.direct_rf,raw_rf_push_trace=self.push_trace,
             species={sp.index:sp.name for sp in self.s.species})
         if self.direct_rf:
             metadata.update(format_version=2,
@@ -502,6 +571,15 @@ class EnergyDiagnostics:
                 direct_rf_restart='Each new Simulation starts a new diagnostic epoch. Persistent restart restoration is not implemented; do not concatenate counters across independent runs.',
                 direct_rf_grid='Explicit -dt*sum J_particle*(native E_mid-native frozen mean)*dual_volume; already global grids are never MPI-summed.',
                 direct_rf_interpretation='Fluctuations include noncoherent fields/mean drift. Pusher arithmetic agreement does not establish particle-grid conservation or load output.')
+        if self.s.work_centered:
+            metadata.update(particle_work='q times orbit-averaged E dot actual residence displacement; nonlinear Lorentz/current solve, synchronized momenta.',
+                impact='First painted-cell or domain intersection; momentum, current, work and event time use the same partial residence.',
+                insertion='Physical birth kinetic energy before acceleration; random birth time and charge/emission law retained.',
+                reference='Frozen converged midpoint native self E and native bias gradient, with static uniform applied E. node_fields is a nodal display representation; forces use orbit gathering.',
+                direct_rf='Explicit -q*(orbit E - orbit frozen native/bias mean E).d_work. No KE subtraction.',
+                direct_rf_grid='Native self-field RF current work only. ED_R_rf_exchange additionally accounts for ED_W_applied_rf, the imposed-bias fluctuation work to particles; a startup ramp is not unexplained grid RF.',
+                direct_rf_impact='Work ends at the first absorbing surface, including within-step birth/impact.',
+                direct_rf_trace='d_work is the actual 3-component work displacement. d_Boris is NaN; dt/t_before describe individual residence. position_after_unclipped is already at impact in this mode.')
         (self.aux/'metadata.json').write_text(json.dumps(metadata,indent=2)+'\n')
 
     def close(self):

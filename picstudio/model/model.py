@@ -341,6 +341,15 @@ def validate(model: dict) -> list[tuple[str, str]]:
                                     "Use 0 filter passes (or the smoothing option) for SCL problems."))
     except Exception:  # noqa: BLE001
         pass
+    try:
+        from ..core.work_centered import validate as validate_coupling
+        validate_coupling(m)
+    except Exception as exc:
+        msgs.append(('error', 'Particle-field coupling: '+str(exc)))
+    if (solver == 'electromagnetic' and sim.get('em_coupling','legacy') == 'legacy'
+            and sim.get('smoothing',0)):
+        msgs.append(('warning', 'Legacy EM field smoothing uses nodal force gathering with native current; '
+                     'particle-grid work need not match. Work-centered coupling requires both filters off.'))
     if m['diagnostics'].get('energy_enabled', False):
         try:
             from ..diagnostics.energy import EnergyDiagnostics

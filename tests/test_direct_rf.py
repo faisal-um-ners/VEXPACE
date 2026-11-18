@@ -170,5 +170,5 @@ def test_gui_controls_and_history_labels(tmp_path):
     labels={a.text() for a in panel.sig_menu.actions()}
     assert 'Direct RF work from particles [J/m]' in labels
     assert 'Direct RF power from particles [W/m]' in labels
-    assert 'Particle minus native-grid RF work [J/m]' in labels
+    assert 'RF work exchange residual [J/m]' in labels
     panel.close();form.close()
