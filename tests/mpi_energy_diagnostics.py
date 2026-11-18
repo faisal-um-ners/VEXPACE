@@ -18,7 +18,7 @@ def model(enabled):
     m['parallel'].update(mode='mpi',threads=1)
     m['simulation'].update(dt='1e-13',n_steps='3',em_conductors='pec only')
     m['species']=[dict(name='e',preset='electron')]
-    m['diagnostics'].update(energy_enabled=enabled,energy_reference_time='1e-13',energy_block_time='1e-13')
+    m['diagnostics'].update(energy_enabled=enabled,energy_direct_rf=enabled,energy_reference_time='1e-13',energy_block_time='1e-13')
     return m
 
 
@@ -45,6 +45,9 @@ def check():
     np.testing.assert_allclose(h['ED_K_surface_3'],expected,rtol=1e-12)
     np.testing.assert_allclose(h['ED_U_electric'],s.energy_diag.field_energy()[0],rtol=1e-14)
     assert abs(h['ED_R_particle'])<1e-29
+    np.testing.assert_allclose(h['ED_W_rf_direct'],h['ED_W_rf'],rtol=1e-12,atol=1e-29)
+    np.testing.assert_allclose(h['ED_W_grid_rf_direct'],s.energy_diag.grid['rf_direct'],rtol=1e-14)
+    assert abs(h['ED_R_rf_arithmetic'])<1e-29
     s.energy_diag.close()
     # Only the enabled object's compact current accumulator is MPI-reduced.
     m=model(False)

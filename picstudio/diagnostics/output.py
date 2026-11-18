@@ -22,7 +22,7 @@ class Output:
             for pattern in ('metadata.json', 'dc_reference.npz', 'surface_energy.csv',
                             'impact_histograms.npz', 'work_blocks.csv', 'work_block_*.npz',
                             'trajectories_rank[0-9]*.csv', 'impacts_rank[0-9]*.csv',
-                            'hub_crossings_rank[0-9]*.csv'):
+                            'hub_crossings_rank[0-9]*.csv', 'rf_push_rank[0-9]*_[0-9]*.npz'):
                 for path in aux.glob(pattern):
                     if path.is_file(): _remove_retry(str(path))
             os.makedirs(os.path.join(out_dir, "fields"), exist_ok=True)

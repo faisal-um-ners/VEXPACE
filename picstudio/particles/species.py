@@ -65,8 +65,11 @@ class Species:
             self._diagnostic_arrays['id'][s] = self._diagnostic_prefix + np.arange(
                 self._diagnostic_next, self._diagnostic_next+k, dtype=np.uint64)
             self._diagnostic_next += k
-            for f in ('work_total', 'work_dc', 'work_rf'):
-                self._diagnostic_arrays[f][s] = 0.
+            for f in ('work_total', 'work_dc', 'work_rf', 'work_rf_direct'):
+                if f in self._diagnostic_arrays:
+                    self._diagnostic_arrays[f][s] = 0.
+            if 'rf_valid_since' in self._diagnostic_arrays:
+                self._diagnostic_arrays['rf_valid_since'][s] = np.nan
         self.n += k
 
     def keep(self, mask):
@@ -84,9 +87,12 @@ class Species:
                 a[:k] = a[:n][idx]
         self.n = k
 
-    def enable_energy_tracking(self, rank=0):
+    def enable_energy_tracking(self, rank=0, direct_rf=False):
         """Optional identities/work arrays; never consumes the simulation RNG."""
         if self._diagnostic_arrays is not None:
+            if direct_rf and 'work_rf_direct' not in self._diagnostic_arrays:
+                self._diagnostic_arrays['work_rf_direct'] = np.zeros(self._cap)
+                self._diagnostic_arrays['rf_valid_since'] = np.full(self._cap, np.nan)
             return
         if self.index >= 256 or rank >= 65536 or rank < 0:
             raise ValueError("Diagnostic IDs support <256 species and <65536 ranks")
@@ -95,6 +101,9 @@ class Species:
         self._diagnostic_arrays = {'id': np.zeros(self._cap, dtype=np.uint64)}
         self._diagnostic_arrays['id'][:self.n] = self._diagnostic_prefix + np.arange(self.n, dtype=np.uint64)
         self._diagnostic_arrays.update({k: np.zeros(self._cap) for k in ('work_total', 'work_dc', 'work_rf')})
+        if direct_rf:
+            self._diagnostic_arrays['work_rf_direct'] = np.zeros(self._cap)
+            self._diagnostic_arrays['rf_valid_since'] = np.full(self._cap, np.nan)
 
     # views on the active particles --------------------------------------
     @property

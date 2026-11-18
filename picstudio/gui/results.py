@@ -234,7 +234,8 @@ class LivePanel(QWidget):
             ed_h = np.asarray(d.get('history_tail', d.get('history')))
             ed_row = ed_h[-1]
             ready = ed_row[ed_cols.index('ED_reference_ready')] > .5
-            self.energy_status.setText('Energy diagnostics: '+('measuring DC/RF work against the frozen mean-field reference. Select ED_ signals in History.' if ready else 'collecting the mean-field reference; DC/RF signals remain unavailable until it is ready.'))
+            mode = 'direct RF work every particle push; ' if 'ED_W_rf_direct' in ed_cols else ''
+            self.energy_status.setText('Energy diagnostics: '+(mode+'measuring DC/RF work against the frozen mean-field reference. Select ED_ signals in History.' if ready else 'collecting the mean-field reference; DC/RF signals remain unavailable until it is ready.'))
             self.energy_status.show()
         else:
             self.energy_status.hide()

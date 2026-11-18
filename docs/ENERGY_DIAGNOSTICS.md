@@ -63,6 +63,67 @@ The app starts light and keeps its theme toggle. The four Live monitor subplots
 retain their dark backgrounds. Figure exports always use white backgrounds,
 including exported Live monitor plots, geometry vacuum patches and legend frames.
 
+### Direct RF work every particle push
+
+With Energy conversion diagnostics enabled, select **Direct RF work every
+particle push**. Its default is off, preserving existing model settings. The
+new signals appear with readable labels in Live monitor and Results History:
+
+| Signal | Measurement |
+|---|---|
+| `ED_W_rf_direct` | Explicit RF-field work from all particles, J/m |
+| `ED_P_rf_direct` | Interval direct RF power from all particles, W/m |
+| `ED_W_grid_rf_direct` | Explicit native-grid particle-current RF work, J/m |
+| `ED_R_rf_arithmetic` | Direct work minus the original work-split counter, J/m |
+| `ED_R_rf_exchange` | Particle direct RF work minus native-grid RF work, J/m |
+
+At each existing Boris push the diagnostic computes
+`delta_W_rf_direct = -q * (E_actual_gathered - E_DC_gathered) dot d_Boris`.
+`d_Boris` is the work displacement of the two original electric kicks, using
+their relativistic energy-consistent velocities. The explicit RF dot product
+does not subtract KE or total/DC work counters, reconstruct field snapshots,
+or change particle/field updates. Positive means energy from particles to the
+reference-subtracted fluctuations. All particles contribute every push;
+history/trajectory write intervals only control reporting cadence.
+
+The native-grid counter explicitly integrates
+`-dt * sum(J_particle * (E_native_mid - E_native_DC) * dual_volume)`.
+Only particle current is used; antenna current stays separate. Replicated
+grid work is not summed over MPI ranks. Comparing it with particle work
+exposes exchange discrepancies; the direct particle dot product should match
+the original work-split counter to roundoff but does not establish that this
+energy reached the RF load or fix a coupling/conservation error.
+
+Selected trajectory and impact CSVs append `W_rf_direct_J` and `rf_valid_since`.
+An unavailable reference/coverage gives NaN, and `rf_valid_since` records the
+first classified time. For particles already present, coverage begins at
+reference completion; later particles begin at their first classified push.
+Never claim complete segment/lifetime work before that coverage begins.
+The global time integral retains work from particles after they are absorbed.
+`surface_energy.csv` adds classified direct work attributed to absorbed
+cohorts and their represented particle count; do not add this attribution
+again to the global energy ledger. Hub records include before/after counters
+and endpoints plus a labelled linear within-push crossing estimate. Impacts
+retain unclipped push endpoints and the existing full-push KE/work convention;
+they do not claim an exact physical substep wall-interception energy.
+
+**Save gathered RF fields every push (selected IDs)** is a separate option,
+off by default. When enabled, buffered `rf_push_rankNNNN_IIIII.npz` files save
+the deterministic tracked-ID sample every classified push, including its
+absorption push. Fields include ID/species index, step/time/dt, physical
+particle weight, charge/mass, old/new unclipped positions and momenta, actual
+gathered E, gathered DC reference, `d_Boris`, incremental direct RF work,
+cumulative direct RF work and coverage time. Vectors use component order
+`z,y,x`; positions use `z,y`. Join impact records by ID and step. These records
+permit a direct offline field dot product without dense full-grid snapshots.
+They can produce large files. Raw trace selection never thins integration of
+the global and per-particle counters or consumes the simulation RNG.
+
+Each new Simulation is a new diagnostic epoch; restoring a cumulative direct
+RF diagnostic from a restart is not implemented. Do not concatenate reset
+counters across runs. These are numerical work diagnostics and need reference,
+timestep, mesh and particle/grid-budget checks before physical interpretation.
+
 Ordinary geometry-object `I_`/`V_` histories are separately opt-in under
 **Geometry Objects → Record current (I) / Record voltage (V)**. Enable them for
 the electrodes you want to analyze. They do not gate energy-impact accounting;

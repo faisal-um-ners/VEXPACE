@@ -504,6 +504,11 @@ DIAGNOSTICS = [
     Field("energy_enabled", "bool", False, "Energy conversion diagnostics",
           help="Passive measurements for 2D-ZY electromagnetic Boris/full-motion runs. Adds work, "
                "load loss, electrode impact energy and selected particle histories without changing forces."),
+    Field("energy_direct_rf", "bool", False, "Direct RF work every particle push", show_if={"energy_enabled":[True]},
+          help="Explicit -q(E-Emean).dBoris at every existing push. Adds direct RF work/power and particle-grid checks to History; does not change forces. Available after reference freeze."),
+    Field("energy_rf_push_trace", "bool", False, "Save gathered RF fields every push (selected IDs)",
+          show_if={"energy_enabled":[True], "energy_direct_rf":[True]},
+          help="Optional buffered NPZ traces for the same deterministic ID sample below, including absorption pushes. Can produce large files. Integration always runs every push, regardless of output cadence."),
     Field("energy_start", "expr", "0", "Mean-field reference starts at", "s", show_if={"energy_enabled":[True]},
           help="Choose a time after the mode settles. Fields continue evolving normally."),
     Field("energy_reference_time", "expr", "10e-9", "Mean-field reference duration", "s", show_if={"energy_enabled":[True]}),
